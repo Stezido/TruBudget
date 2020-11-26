@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -7,11 +8,11 @@ import { Ctx } from "./lib/ctx";
 import { isNonemptyString } from "./lib/validation";
 import * as Result from "./result";
 import { ServiceUser } from "./service/domain/organization/service_user";
-import { Permissions } from "./service/domain/permissions";
+import { filterPermissions, Permissions } from "./service/domain/permissions";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: "See the permissions for a given subproject.",
       tags: ["subproject"],
@@ -62,8 +63,15 @@ interface Service {
   ): Promise<Result.Type<Permissions>>;
 }
 
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+    subprojectId: string;
+  };
+}
+
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/subproject.intent.listPermissions`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -100,24 +108,28 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
       }
 
       try {
-        const subprojectPermissions = await service.listSubprojectPermissions(
+        const subprojectPermissionsResult = await service.listSubprojectPermissions(
           ctx,
           user,
           projectId,
           subprojectId,
         );
 
-        if (Result.isErr(subprojectPermissions)) {
-          subprojectPermissions.message = `could not list subproject permissions: ${
-            subprojectPermissions.message
-          }`;
-          throw subprojectPermissions;
+        if (Result.isErr(subprojectPermissionsResult)) {
+          throw new VError(subprojectPermissionsResult, "subproject.intent.listPermissions failed");
         }
+        const subprojectPermissions = subprojectPermissionsResult;
+
+        // TODO use an exposedPermissions interface instead of a filter function
+        const filteredSubprojectPermissions = filterPermissions(subprojectPermissions, [
+          "subproject.close",
+          "subproject.archive",
+        ]);
 
         const code = 200;
         const body = {
           apiVersion: "1.0",
-          data: subprojectPermissions,
+          data: filteredSubprojectPermissions,
         };
         reply.status(code).send(body);
       } catch (err) {

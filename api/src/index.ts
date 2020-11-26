@@ -6,6 +6,7 @@ import * as GroupCreateAPI from "./group_create";
 import * as GroupListAPI from "./group_list";
 import * as GroupMemberAddAPI from "./group_member_add";
 import * as GroupMemberRemoveAPI from "./group_member_remove";
+import * as GroupPermissionsListAPI from "./group_permissions_list";
 import { registerRoutes } from "./httpd/router";
 import { createBasicApp } from "./httpd/server";
 import deepcopy from "./lib/deepcopy";
@@ -39,6 +40,7 @@ import * as GlobalPermissionsGetService from "./service/global_permissions_get";
 import * as GroupCreateService from "./service/group_create";
 import * as GroupMemberAddService from "./service/group_member_add";
 import * as GroupMemberRemoveService from "./service/group_member_remove";
+import * as GroupPermissionsListService from "./service/group_permissions_list";
 import * as GroupQueryService from "./service/group_query";
 import { randomString } from "./service/hash";
 import * as NotificationListService from "./service/notification_list";
@@ -47,29 +49,32 @@ import * as ProjectAssignService from "./service/project_assign";
 import * as ProjectCloseService from "./service/project_close";
 import * as ProjectCreateService from "./service/project_create";
 import * as ProjectGetService from "./service/project_get";
+import * as ProjectViewHistoryService from "./service/project_history_get";
 import * as ProjectListService from "./service/project_list";
 import * as ProjectPermissionGrantService from "./service/project_permission_grant";
 import * as ProjectPermissionRevokeService from "./service/project_permission_revoke";
 import * as ProjectPermissionsListService from "./service/project_permissions_list";
 import * as ProjectProjectedBudgetDeleteService from "./service/project_projected_budget_delete";
 import * as ProjectProjectedBudgetUpdateService from "./service/project_projected_budget_update";
-import * as ProjectTraceEventsService from "./service/project_trace_events";
 import * as ProjectUpdateService from "./service/project_update";
 import { ConnectionSettings } from "./service/RpcClient.h";
 import * as SubprojectAssignService from "./service/subproject_assign";
 import * as SubprojectCloseService from "./service/subproject_close";
 import * as SubprojectCreateService from "./service/subproject_create";
 import * as SubprojectGetService from "./service/subproject_get";
+import * as SubprojectViewHistoryService from "./service/subproject_history_get";
 import * as SubprojectListService from "./service/subproject_list";
 import * as SubprojectPermissionGrantService from "./service/subproject_permission_grant";
 import * as SubprojectPermissionRevokeService from "./service/subproject_permission_revoke";
 import * as SubprojectPermissionListService from "./service/subproject_permissions_list";
 import * as SubprojectProjectedBudgetDeleteService from "./service/subproject_projected_budget_delete";
 import * as SubprojectProjectedBudgetUpdateService from "./service/subproject_projected_budget_update";
-import * as SubprojectTraceEventsService from "./service/subproject_trace_events";
 import * as SubprojectUpdateService from "./service/subproject_update";
+import * as UserAssignmentsService from "./service/user_assignments_get";
 import * as UserAuthenticateService from "./service/user_authenticate";
 import * as UserCreateService from "./service/user_create";
+import * as UserDisableService from "./service/user_disable";
+import * as UserEnableService from "./service/user_enable";
 import * as UserPasswordChangeService from "./service/user_password_change";
 import * as UserPermissionGrantService from "./service/user_permission_grant";
 import * as UserPermissionRevokeService from "./service/user_permission_revoke";
@@ -78,12 +83,13 @@ import * as UserQueryService from "./service/user_query";
 import * as WorkflowitemAssignService from "./service/workflowitem_assign";
 import * as WorkflowitemCloseService from "./service/workflowitem_close";
 import * as WorkflowitemCreateService from "./service/workflowitem_create";
+import * as WorkflowitemDocumentDownloadService from "./service/workflowitem_document_download";
 import * as WorkflowitemGetService from "./service/workflowitem_get";
+import * as WorkflowitemViewHistoryService from "./service/workflowitem_history_get";
 import * as WorkflowitemListService from "./service/workflowitem_list";
 import * as WorkflowitemPermissionGrantService from "./service/workflowitem_permission_grant";
 import * as WorkflowitemPermissionRevokeService from "./service/workflowitem_permission_revoke";
 import * as WorkflowitemPermissionsListService from "./service/workflowitem_permissions_list";
-import * as WorkflowitemTraceEventsService from "./service/workflowitem_trace_events";
 import * as WorkflowitemUpdateService from "./service/workflowitem_update";
 import * as WorkflowitemsReorderService from "./service/workflowitems_reorder";
 import * as SubprojectAssignAPI from "./subproject_assign";
@@ -101,7 +107,10 @@ import * as SubprojectViewHistoryAPI from "./subproject_view_history";
 import * as SubprojectViewHistoryAPIv2 from "./subproject_view_history_v2";
 import * as UserAuthenticateAPI from "./user_authenticate";
 import * as UserCreateAPI from "./user_create";
+import * as UserDisableAPI from "./user_disable";
+import * as UserEnableAPI from "./user_enable";
 import * as UserListAPI from "./user_list";
+import * as UserAssignmentsAPI from "./user_listAssignments";
 import * as UserPasswordChangeAPI from "./user_password_change";
 import * as UserPermissionGrantAPI from "./user_permission_grant";
 import * as UserPermissionRevokeAPI from "./user_permission_revoke";
@@ -109,6 +118,7 @@ import * as UserPermissionsListAPI from "./user_permissions_list";
 import * as WorkflowitemAssignAPI from "./workflowitem_assign";
 import * as WorkflowitemCloseAPI from "./workflowitem_close";
 import * as WorkflowitemCreateAPI from "./workflowitem_create";
+import * as WorkflowitemsDocumentDownloadAPI from "./workflowitem_download_document";
 import * as WorkflowitemListAPI from "./workflowitem_list";
 import * as WorkflowitemPermissionGrantAPI from "./workflowitem_permission_grant";
 import * as WorkflowitemPermissionRevokeAPI from "./workflowitem_permission_revoke";
@@ -164,8 +174,6 @@ const rpcSettings: ConnectionSettings = {
   password: process.env.RPC_PASSWORD || "s750SiJnj50yIrmwxPnEdSzpfGlTAHzhaUwgqKeb0G1j",
 };
 
-const env = process.env.NODE_ENV || "";
-
 logger.info(
   { rpcSettings: rpcSettingsWithoutPassword(rpcSettings) },
   "Connecting to MultiChain node",
@@ -173,14 +181,14 @@ logger.info(
 const db = Multichain.init(rpcSettings);
 const { multichainClient } = db;
 
-const server = createBasicApp(jwtSecret, URL_PREFIX, port, SWAGGER_BASEPATH, env);
+const server = createBasicApp(jwtSecret, URL_PREFIX, port, SWAGGER_BASEPATH);
 
 /*
  * Run the app:
  */
 
 // Enable useful traces of unhandled-promise warnings:
-process.on("unhandledRejection", err => {
+process.on("unhandledRejection", (err) => {
   logger.fatal({ err }, "UNHANDLED PROMISE REJECTION");
   process.exit(1);
 });
@@ -189,13 +197,13 @@ function registerSelf(): Promise<boolean> {
   return multichainClient
     .getRpcClient()
     .invoke("listaddresses", "*", false, 1, 0)
-    .then(addressInfos =>
+    .then((addressInfos) =>
       addressInfos
-        .filter(info => info.ismine)
-        .map(info => info.address)
-        .find(_ => true),
+        .filter((info) => info.ismine)
+        .map((info) => info.address)
+        .find((_) => true),
     )
-    .then(address => {
+    .then((address) => {
       const req = {
         body: {
           data: {
@@ -294,14 +302,29 @@ UserCreateAPI.addHttpHandler(server, URL_PREFIX, {
     UserCreateService.createUser(organizationVaultSecret, db, ctx, issuer, reqData),
 });
 
+UserEnableAPI.addHttpHandler(server, URL_PREFIX, {
+  enableUser: (ctx, issuer, orga, reqData) =>
+    UserEnableService.enableUser(db, ctx, issuer, orga, reqData),
+});
+
+UserDisableAPI.addHttpHandler(server, URL_PREFIX, {
+  disableUser: (ctx, issuer, orga, reqData) =>
+    UserDisableService.disableUser(db, ctx, issuer, orga, reqData),
+});
+
+UserAssignmentsAPI.addHttpHandler(server, URL_PREFIX, {
+  getUserAssignments: (ctx, issuer, orga, reqData) =>
+    UserAssignmentsService.getUserAssignments(db, ctx, issuer, orga, reqData),
+});
+
 UserListAPI.addHttpHandler(server, URL_PREFIX, {
   listUsers: (ctx, issuer) => UserQueryService.getUsers(db, ctx, issuer),
   listGroups: (ctx, issuer) => GroupQueryService.getGroups(db, ctx, issuer),
 });
 
 UserPasswordChangeAPI.addHttpHandler(server, URL_PREFIX, {
-  changeUserPassword: (ctx, issuer, reqData) =>
-    UserPasswordChangeService.changeUserPassword(db, ctx, issuer, reqData),
+  changeUserPassword: (ctx, issuer, orga, reqData) =>
+    UserPasswordChangeService.changeUserPassword(db, ctx, issuer, orga, reqData),
 });
 
 UserPermissionGrantAPI.addHttpHandler(server, URL_PREFIX, {
@@ -339,6 +362,11 @@ GroupMemberAddAPI.addHttpHandler(server, URL_PREFIX, {
 GroupMemberRemoveAPI.addHttpHandler(server, URL_PREFIX, {
   removeGroupMember: (ctx, issuer, groupId, newMember) =>
     GroupMemberRemoveService.removeMember(db, ctx, issuer, groupId, newMember),
+});
+
+GroupPermissionsListAPI.addHttpHandler(server, URL_PREFIX, {
+  getGroupPermissions: (ctx, issuer, groupId) =>
+    GroupPermissionsListService.getGroupPermissions(db, ctx, issuer, groupId),
 });
 
 /*
@@ -427,8 +455,8 @@ ProjectViewHistoryAPI.addHttpHandler(server, URL_PREFIX, {
 });
 
 ProjectViewHistoryAPIv2.addHttpHandler(server, URL_PREFIX, {
-  getProjectTraceEvents: (ctx, user, projectId) =>
-    ProjectTraceEventsService.getTraceEvents(db, ctx, user, projectId),
+  getProjectHistory: (ctx, user, projectId, filter) =>
+    ProjectViewHistoryService.getProjectHistory(db, ctx, user, projectId, filter),
 });
 
 ProjectProjectedBudgetUpdateAPI.addHttpHandler(server, URL_PREFIX, {
@@ -496,8 +524,15 @@ SubprojectViewHistoryAPI.addHttpHandler(server, URL_PREFIX, {
 });
 
 SubprojectViewHistoryAPIv2.addHttpHandler(server, URL_PREFIX, {
-  getSubprojectTraceEvents: (ctx, user, projectId, subprojectId) =>
-    SubprojectTraceEventsService.getTraceEvents(db, ctx, user, projectId, subprojectId),
+  getSubprojectHistory: (ctx, user, projectId, subprojectId, filter) =>
+    SubprojectViewHistoryService.getSubprojectHistory(
+      db,
+      ctx,
+      user,
+      projectId,
+      subprojectId,
+      filter,
+    ),
 });
 
 SubprojectPermissionListAPI.addHttpHandler(server, URL_PREFIX, {
@@ -591,14 +626,15 @@ WorkflowitemListAPI.addHttpHandler(server, URL_PREFIX, {
 });
 
 WorkflowitemViewHistoryAPI.addHttpHandler(server, URL_PREFIX, {
-  getWorkflowitemTraceEvents: (ctx, user, projectId, subprojectId, workflowitemId) =>
-    WorkflowitemTraceEventsService.getTraceEvents(
+  getWorkflowitemHistory: (ctx, user, projectId, subprojectId, workflowitemId, filter) =>
+    WorkflowitemViewHistoryService.getWorkflowitemHistory(
       db,
       ctx,
       user,
       projectId,
       subprojectId,
       workflowitemId,
+      filter,
     ),
 });
 
@@ -706,11 +742,24 @@ WorkflowitemValidateDocumentAPI.addHttpHandler(server, URL_PREFIX, {
     DocumentValidationService.isSameDocument(documentBase64, expectedSHA256),
 });
 
+WorkflowitemsDocumentDownloadAPI.addHttpHandler(server, URL_PREFIX, {
+  getDocument: (ctx, user, projectId, subprojectId, workflowitemId, documentId) =>
+    WorkflowitemDocumentDownloadService.getDocument(
+      db,
+      ctx,
+      user,
+      projectId,
+      subprojectId,
+      workflowitemId,
+      documentId,
+    ),
+});
+
 /*
  * Run the server.
  */
 
-server.listen(port, "0.0.0.0", async err => {
+server.listen(port, "0.0.0.0", async (err) => {
   if (err) {
     logger.fatal({ err }, "Connection could not be established. Aborting.");
     console.trace();

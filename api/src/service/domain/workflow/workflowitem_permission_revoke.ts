@@ -1,5 +1,6 @@
 import isEqual = require("lodash.isequal");
 
+import { VError } from "verror";
 import Intent from "../../../authz/intents";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
@@ -7,6 +8,7 @@ import { BusinessEvent } from "../business_event";
 import { InvalidCommand } from "../errors/invalid_command";
 import { NotAuthorized } from "../errors/not_authorized";
 import { NotFound } from "../errors/not_found";
+import { PreconditionError } from "../errors/precondition_error";
 import { Identity } from "../organization/identity";
 import { ServiceUser } from "../organization/service_user";
 import * as Project from "./project";
@@ -32,7 +34,7 @@ export async function revokeWorkflowitemPermission(
   revokee: Identity,
   intent: Intent,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<BusinessEvent[]>> {
   const workflowitem = await repository.getWorkflowitem(projectId, subprojectId, workflowitemId);
 
   if (Result.isErr(workflowitem)) {
@@ -49,6 +51,9 @@ export async function revokeWorkflowitemPermission(
     intent,
     revokee,
   );
+  if (Result.isErr(permissionRevoked)) {
+    return new VError(permissionRevoked, "failed to create permission revoked event");
+  }
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -73,10 +78,24 @@ export async function revokeWorkflowitemPermission(
     return new InvalidCommand(ctx, permissionRevoked, [updatedWorkflowitem]);
   }
 
+  // Prevent revoking grant permission of last user
+  const intents: Intent[] = ["workflowitem.intent.grantPermission"];
+  if (
+    intents.includes(intent) &&
+    workflowitem.permissions[`${intent}`] !== undefined &&
+    workflowitem.permissions[`${intent}`].length === 1
+  ) {
+    return new PreconditionError(
+      ctx,
+      permissionRevoked,
+      `Revoking ${intent} of last user is not allowed.`,
+    );
+  }
+
   // Only emit the event if it causes any changes to the permissions:
   if (isEqual(workflowitem.permissions, updatedWorkflowitem.permissions)) {
-    return { newEvents: [] };
+    return [];
   } else {
-    return { newEvents: [permissionRevoked] };
+    return [permissionRevoked];
   }
 }

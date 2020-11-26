@@ -1,33 +1,47 @@
+import isEmpty from "lodash/isEmpty";
+import queryString from "query-string";
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import isEmpty from "lodash/isEmpty";
 
-import {
-  toggleSidebar,
-  fetchActivePeers,
-  createBackup,
-  restoreBackup,
-  fetchVersions,
-  exportData,
-  storeSearchTerm,
-  storeSearchBarDisplayed
-} from "./actions";
-import { logout } from "../Login/actions";
-
+import { convertToSearchBarString, toJS } from "../../helper";
+import { fetchEmailAddress, logout } from "../Login/actions";
 import FlyInNotifications from "../Notifications/FlyInNotifications";
-
+import {
+  createBackup,
+  enableUserProfileEdit,
+  exportData,
+  fetchActivePeers,
+  hideUserProfile,
+  restoreBackup,
+  saveEmailAddress,
+  setIsRoot,
+  setValidEmailAddressInput,
+  showUserProfile,
+  storeSearchBarDisplayed,
+  storeSearchTerm,
+  storeTempEmailAddress,
+  toggleSidebar
+} from "./actions";
 import Navbar from "./Navbar";
-import { toJS } from "../../helper";
 
 class NavbarContainer extends Component {
   componentDidMount() {
     this.props.fetchActivePeers();
-    this.props.fetchVersions();
+
+    if (this.props.userId === "root") {
+      this.props.setIsRoot(true);
+    }
+    if (this.props.location.search) {
+      const queryParameter = queryString.parse(this.props.location.search);
+      const searchTermString = convertToSearchBarString(queryString.stringify(queryParameter));
+      this.props.storeSearchTerm(searchTermString);
+      this.props.storeSearchBarDisplayed(true);
+    }
   }
 
   render() {
     return (
-      <div>
+      <div data-test="navigation-bar">
         <Navbar {...this.props} unreadNotifications={this.props.unreadNotificationCount} />
         <FlyInNotifications
           history={this.props.history}
@@ -46,10 +60,17 @@ const mapDispatchToProps = {
   fetchActivePeers,
   createBackup,
   restoreBackup,
-  fetchVersions,
   exportData,
   storeSearchTerm,
-  storeSearchBarDisplayed
+  storeSearchBarDisplayed,
+  setIsRoot,
+  showUserProfile,
+  fetchEmailAddress,
+  saveEmailAddress,
+  storeTempEmailAddress,
+  setValidEmailAddressInput,
+  enableUserProfileEdit,
+  hideUserProfile
 };
 
 const mapStateToProps = state => {
@@ -69,13 +90,20 @@ const mapStateToProps = state => {
     avatarBackground: state.getIn(["login", "avatarBackground"]),
     currentProject: state.getIn(["navbar", "currentProject"]),
     currentSubProject: state.getIn(["navbar", "currentSubProject"]),
-    versions: state.getIn(["navbar", "versions"]),
     allowedIntents: state.getIn(["login", "allowedIntents"]),
     groups: state.getIn(["login", "groups"]),
     unreadNotificationCount: state.getIn(["notifications", "unreadNotificationCount"]),
     latestFlyInId: state.getIn(["notifications", "latestFlyInId"]),
     searchTerm: state.getIn(["navbar", "searchTerm"]),
-    searchBarDisplayed: state.getIn(["navbar", "searchBarDisplayed"])
+    searchBarDisplayed: state.getIn(["navbar", "searchBarDisplayed"]),
+    isRoot: state.getIn(["login", "isRoot"]),
+    open: state.getIn(["navbar", "userProfileOpen"]),
+    tempEmailAddress: state.getIn(["navbar", "tempEmailAddress"]),
+    userProfileEdit: state.getIn(["navbar", "userProfileEdit"]),
+    emailAddress: state.getIn(["login", "emailAddress"]),
+    emailServiceAvailable: state.getIn(["login", "emailServiceAvailable"]),
+    exportServiceAvailable: state.getIn(["login", "exportServiceAvailable"]),
+    isEmailAddressInputValid: state.getIn(["navbar", "isEmailAddressInputValid"])
   };
 };
 

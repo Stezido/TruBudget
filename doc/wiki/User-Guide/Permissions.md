@@ -41,18 +41,24 @@ A sample set of global permissions are:
 
 **Description:**
 
-These section describes all permissions related to a project.
+These section describes all permissions related to a project. Selecting a user or group grant them the specific permission and deselecting revoke them the specific permissions.
 
 **Notes:**
 
 - More information about a specific intent can be found in the [project section](./Projects/Project.md).
 - The user who created the project is automatically assigned to it.
+- Granting assign permissions also grants view permission-permissions because it is needed in the assign process.
+- More information about the confirmation dialog can be found in the [confirmation section](./Confirmation.md).
 
 **Instructions:**
 
 1. Click the button in the upper left corner to open the side-navigation-bar
 2. Click the "Projects" menu point
 3. Click the lock icon in the bottom right corner of a project to open the permissions dialog
+4. After selecting/deselecting certain users or groups click on submit to open a confirmation
+5. If additional permissions are required the confirmation dialog lists these.
+6. Confirming the dialog first executes all additional actions listed if there are any, then grant/revoke the users/groups
+7. If no additional permissions have to be granted the users/groups are granted/revoked all selected permissions
 
 ![open project permission dialog](../uploads/Screenshots/open_project_permission_dialog.jpg)
 
@@ -65,7 +71,8 @@ These section describes all permissions related to a project.
 
 **Notes:**
 
-- make sure to grant the viewSummary-permission before granting the viewDetails-permission so that the user is able to see the project
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ### Write permissions
 
@@ -77,7 +84,8 @@ These section describes all permissions related to a project.
 
 **Notes:**
 
-- do not forget to grant the view permissions of the project before granting write permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ### Admin permissions
 
@@ -89,7 +97,8 @@ These section describes all permissions related to a project.
 
 **Notes:**
 
-- do not forget to grant the viewSummary-permission of the project before granting admin permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ## Subproject permissions
 
@@ -107,6 +116,10 @@ These section describes all permissions related to a subproject
 2. Click the "Projects" menu point
 3. Click the blue magnifier icon in the bottom right corner of a project
 4. Click the lock icon on the right of the subproject to open the permissions dialog
+5. After selecting/deselecting certain users or groups click on submit to open a confirmation
+6. If additional permissions are required the confirmation dialog lists these.
+7. Confirming the dialog first executes all additional actions listed if there are any, then grant/revoke the users/groups
+8. If no additional permissions have to be granted the users/groups are granted/revoked all selected permissions
 
 ![open subproject permission dialog](../uploads/Screenshots/open_subproject_permission_dialog.jpg)
 
@@ -121,7 +134,9 @@ Following intents do exist related to view permissions of a subproject:
 
 **Notes:**
 
-- make sure to grant the viewSummary-permission before granting the viewDetails-permission so that the user is able to see the subproject
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
+- "view project overview" and "view project details" are also required to view a subproject
 
 ### Write permissions
 
@@ -137,7 +152,8 @@ Following intents do exist related to write permissions of a project:
 
 **Notes:**
 
-- do not forget to grant the view permissions of the subproject before granting write permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ### Admin permissions
 
@@ -149,7 +165,8 @@ Following intents do exist related to write permissions of a project:
 
 **Notes:**
 
-- do not forget to grant the viewSummary-permission of the project before granting admin permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ## Workflow permissions
 
@@ -169,6 +186,10 @@ These section describes all permissions related to a workflowitem
 3. Click the blue magnifier icon in the bottom right corner of a project
 4. Click the grey magnifier icon on the most right of the subproject you want to view
 5. Click the lock icon on the right of the workflowitem to open the permissions dialog
+6. After selecting/deselecting certain users or groups click on submit to open a confirmation
+7. If additional permissions are required the confirmation dialog lists these.
+8. Confirming the dialog first executes all additional actions listed if there are any, then grant/revoke the users/groups
+9. If no additional permissions have to be granted the users/groups are granted/revoked all selected permissions
 
 ![open workflowitem permission dialog](../uploads/Screenshots/open_workflowitem_permission_dialog.jpg)
 
@@ -182,7 +203,9 @@ Following intents do exist related to view permissions of a subproject:
 
 **Notes:**
 
-- If a user has any write permission but no view permission the workflowitem is shown as redacted.
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
+- "view project overview", "view project details", "view subproject overview" and "view subproject details" are also required to view a workflowitem
 
 ### Write permissions
 
@@ -192,11 +215,11 @@ Following intents do exist related to write permissions of a project:
 
 - "Assign workflowitem" : assign a user/group to the workflowitem
 - "Update workflowitem" : edit title, comment, budget or add documents to the workflowitem
-- "Close workflowitem" : close the workflowitem
 
 **Notes:**
 
-- do not forget to grant the view permissions of the subproject before granting write permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ### Admin permissions
 
@@ -210,7 +233,8 @@ Following permissions do exist related to a workflowitem:
 
 **Notes:**
 
-- do not forget to grant the viewSummary-permission of the project before granting admin permissions
+- If the grantee has not all necessary view permissions yet a dialog opens which shows all required permissions.
+  On confirm they are granted. (see [confirmation](./Confirmation.md) for more Details)
 
 ## Permission intents
 
@@ -225,6 +249,8 @@ Following list describes all existing permissions. If you need more information 
 | global.revokePermission                       | the intent has no influence on the trubudget website                                                                   |
 | global.createProject                          | create a project on the overview site                                                                                  |
 | global.createUser                             | create a user with or without admin permissions (requires global.grantPermission)                                      |
+| global.disableUser                            | disable a user (user is not able to login nor to be assigned, permissions persist)                                     |
+| global.enableUser                             | enable a user                                                                                                          |
 | global.createGroup                            | create a group with or without admin permissions                                                                       |
 | group.addUser                                 | add a user/group to a group                                                                                            |
 | group.removeUser                              | add a user/group to a group                                                                                            |
@@ -259,4 +285,3 @@ Following list describes all existing permissions. If you need more information 
 | workflowitem.intent.listPermissions           | show which user/group has which permission on the workflowitem                                                         |
 | workflowitem.intent.grantPermission           | grant workflowitem permissions to a user/group                                                                         |
 | workflowitem.intent.revokePermission          | revoke workflowitem permissions from a user/group                                                                      |
-| workflowitem.close                            | close the workflowitem                                                                                                 |

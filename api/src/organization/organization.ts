@@ -1,5 +1,4 @@
 import { VError } from "verror";
-
 import logger from "../lib/logger";
 import * as SymmetricCrypto from "../lib/symmetricCrypto";
 import { Organization, WalletAddress } from "../network/model/Nodes";
@@ -66,11 +65,11 @@ async function ensureOrganizationAddress(
       .getRpcClient()
       // Retrive the oldest address:
       .invoke("listaddresses", "*", false, 1, 0)
-      .then(addressInfos =>
+      .then((addressInfos) =>
         addressInfos
           .filter((info: GetaddressesItem) => info.ismine)
           .map((info: GetaddressesItem) => info.address)
-          .find(_ => true),
+          .find((_) => true),
       );
     if (!addressFromWallet) {
       throw new VError(
@@ -82,7 +81,7 @@ async function ensureOrganizationAddress(
     const privkeyCiphertext = await multichain
       .getRpcClient()
       .invoke("dumpprivkey", addressFromWallet)
-      .then(plaintext => SymmetricCrypto.encrypt(organizationVaultSecret, plaintext));
+      .then((plaintext) => SymmetricCrypto.encrypt(organizationVaultSecret, plaintext));
 
     logger.trace(`Initializing organization address to local wallet address: ${addressFromWallet}`);
     const streamName = organizationStreamName(organization);
@@ -100,6 +99,17 @@ async function ensureOrganizationAddress(
   return organizationAddress;
 }
 
+export async function organizationExists(
+  multichain: MultichainClient,
+  organization: Organization,
+): Promise<Result.Type<boolean>> {
+  try {
+    return (await getOrganizationAddressItem(multichain, organization)) ? true : false;
+  } catch (err) {
+    return err;
+  }
+}
+
 export async function getOrganizationAddress(
   multichain: MultichainClient,
   organization: Organization,
@@ -115,8 +125,12 @@ async function getOrganizationAddressItem(
 ): Promise<OrganizationAddressItem | undefined> {
   const streamName = organizationStreamName(organization);
   const streamItem = "address";
-  return multichain
+  const organizationAddressItem = multichain
     .v2_readStreamItems(streamName, streamItem, 1)
-    .then(items => items.map(x => x.data.json))
-    .then(items => items.find(_ => true));
+    .then((items) => items.map((x) => x.data.json))
+    .then((items) => items.find((_) => true))
+    .catch((error) => {
+      if (error.kind !== "NotFound") throw error;
+    });
+  return organizationAddressItem;
 }

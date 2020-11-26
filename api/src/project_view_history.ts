@@ -1,5 +1,5 @@
-import { FastifyInstance } from "fastify";
-import Joi = require("joi");
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -14,7 +14,7 @@ import * as Subproject from "./service/domain/workflow/subproject";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       deprecated: true,
       description:
@@ -113,11 +113,27 @@ interface ExposedEvent {
 
 interface Service {
   getProject(ctx: Ctx, user: ServiceUser, projectId: string): Promise<Result.Type<Project.Project>>;
-  getSubprojects(ctx: Ctx, user: ServiceUser, projectId: string): Promise<Subproject.Subproject[]>;
+  getSubprojects(
+    ctx: Ctx,
+    user: ServiceUser,
+    projectId: string,
+  ): Promise<Result.Type<Subproject.Subproject[]>>;
+}
+
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+    offset?: string;
+    limit?: string;
+    startAt?: string;
+    endAt?: string;
+    publisher?: string;
+    eventType?: string;
+  };
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/project.viewHistory`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -140,42 +156,51 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
         return;
       }
 
-      const offset = parseInt(request.query.offset || 0, 10);
-      if (isNaN(offset)) {
-        reply.status(400).send({
-          apiVersion: "1.0",
-          error: {
-            code: 400,
-            message: "if present, the query parameter `offset` must be an integer",
-          },
-        });
-        return;
+      // Default: last created history event
+      let offset: number = 0;
+      if (request.query.offset !== undefined) {
+        offset = parseInt(request.query.offset, 10);
+        if (isNaN(offset)) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `offset` must be an integer",
+            },
+          });
+          return;
+        }
       }
 
-      let limit: number | undefined = parseInt(request.query.limit, 10);
-      if (isNaN(limit)) {
-        limit = undefined;
-      } else if (limit <= 0) {
-        reply.status(400).send({
-          apiVersion: "1.0",
-          error: {
-            code: 400,
-            message: "if present, the query parameter `limit` must be a positive integer",
-          },
-        });
-        return;
+      // Default: no limit
+      let limit: number | undefined;
+      if (request.query.limit !== undefined) {
+        limit = parseInt(request.query.limit, 10);
+        if (isNaN(limit) || limit <= 0) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `limit` must be a positive integer",
+            },
+          });
+          return;
+        }
       }
 
       try {
         const projectResult = await service.getProject(ctx, user, projectId);
         if (Result.isErr(projectResult)) {
-          projectResult.message = `project.viewHistory failed: ${projectResult.message}`;
-          throw projectResult;
+          throw new VError(projectResult, "project.viewHistory failed");
         }
         const project: Project.Project = projectResult;
 
         // Add subprojects' logs to the project log and sort by creation time:
-        const subprojects = await service.getSubprojects(ctx, user, projectId);
+        const subprojectsResult = await service.getSubprojects(ctx, user, projectId);
+        if (Result.isErr(subprojectsResult)) {
+          throw new VError(subprojectsResult, "project.viewHistory failed");
+        }
+        const subprojects: Subproject.Subproject[] = subprojectsResult;
         const events: ExposedEvent[] = project.log;
         for (const subproject of subprojects) {
           events.push(...subproject.log);

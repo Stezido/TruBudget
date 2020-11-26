@@ -4,20 +4,23 @@ const { readDirectory, readJsonFile } = require("./files");
 const {
   authenticate,
   createProject,
+  assignProject,
   closeProject,
   createSubproject,
+  assignSubproject,
   updateProject,
   updateSubproject,
   closeSubproject,
   updateWorkflowitem,
   closeWorkflowitem,
+  assignWorkflowitem,
   findProject,
   findSubproject,
   findWorkflowitem,
   grantPermissions,
   revokeProjectPermission,
   queryApiDoc,
-  createWorkflowitem
+  createWorkflowitem,
 } = require("./api");
 
 const DEFAULT_API_VERSION = "1.0";
@@ -25,19 +28,40 @@ const DEFAULT_API_VERSION = "1.0";
 // List all files here that do not contain project data
 const projectBlacklist = ["users.json", "close_test.json", "groups.json"];
 
+// Executing admin user
+const serviceUser = {
+  id: "mstein",
+  password: "test",
+};
+
 axios.defaults.transformRequest = [
   (data, headers) => {
     if (typeof data === "object") {
       return {
         apiVersion: DEFAULT_API_VERSION,
-        data: { ...data }
+        data: { ...data },
       };
     } else {
       return data;
     }
   },
-  ...axios.defaults.transformRequest
+  ...axios.defaults.transformRequest,
 ];
+
+axios.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  function (error) {
+    if (!error.response) {
+      return Promise.reject({
+        code: error.code,
+        data: { error: { message: error.message } },
+      });
+    }
+    return Promise.reject(error.response);
+  }
+);
 
 async function impersonate(userId, password) {
   const token = await authenticate(axios, userId, password);
@@ -61,7 +85,7 @@ const provisionBlockchain = async (host, port, rootSecret, organization) => {
     await provisionGroups(axios, folder);
 
     console.log("Starting to provision projects");
-    await impersonate("mstein", "test");
+    await impersonate(serviceUser.id, serviceUser.password);
     const files = readDirectory(folder);
     for (const fileName of files) {
       if (projectBlacklist.indexOf(fileName) === -1) {
@@ -82,11 +106,11 @@ const provisionBlockchain = async (host, port, rootSecret, organization) => {
   }
 };
 
-const provisionFromData = async projectTemplate => {
+const provisionFromData = async (projectTemplate) => {
   console.log(`Start provisioning project ${projectTemplate.displayName}....`);
   try {
     const projectExists = await findProject(axios, projectTemplate).then(
-      existingProject => existingProject !== undefined
+      (existingProject) => existingProject !== undefined
     );
     if (projectExists) {
       console.log(`${projectTemplate.displayName} project already exists.`);
@@ -122,6 +146,7 @@ const provisionFromData = async projectTemplate => {
     }
 
     if (isToBeClosed) {
+      await assignProject(axios, project.data.id, serviceUser.id);
       await closeProject(axios, project);
     }
 
@@ -129,9 +154,7 @@ const provisionFromData = async projectTemplate => {
   } catch (err) {
     if (err.code && err.code === "MAX_RETRIES") {
       console.log(
-        `Failed to provision project ${
-          projectTemplate.displayName
-        } , max retries exceeded`
+        `Failed to provision project ${projectTemplate.displayName} , max retries exceeded`
       );
     }
   }
@@ -179,6 +202,12 @@ const provisionSubproject = async (project, subprojectTemplate) => {
   }
 
   if (isToBeClosed) {
+    await assignSubproject(
+      axios,
+      project.data.id,
+      subproject.data.id,
+      serviceUser.id
+    );
     await closeSubproject(axios, project.data.id, subproject.data.id);
   }
 
@@ -210,7 +239,7 @@ const provisionWorkflowitem = async (
       amountType: workflowitemTemplate.amountType,
       status: "open",
       assignee: workflowitemTemplate.assignee,
-      exchangeRate: workflowitemTemplate.exchangeRate
+      exchangeRate: workflowitemTemplate.exchangeRate,
     };
     const amount = workflowitemTemplate.amount
       ? workflowitemTemplate.amount.toString()
@@ -249,6 +278,14 @@ const provisionWorkflowitem = async (
     );
     if (isToBeClosed) {
       console.log(`Closing workflowitem "${workflowitemTemplate.displayName}"`);
+      // Only assigned user are allowed to close the workflowitem
+      await assignWorkflowitem(
+        axios,
+        project.data.id,
+        subproject.data.id,
+        workflowitem.data.id,
+        serviceUser.id
+      );
       await closeWorkflowitem(
         axios,
         project.data.id,
@@ -259,10 +296,10 @@ const provisionWorkflowitem = async (
   }
 };
 
-const fmtList = l =>
+const fmtList = (l) =>
   l
-    .map(x => (x.data.displayName === undefined ? x : x.data.displayName))
-    .map(x => `"${x}"`)
+    .map((x) => (x.data.displayName === undefined ? x : x.data.displayName))
+    .map((x) => `"${x}"`)
     .join(" > ");
 
 async function runIntegrationTests(rootSecret, folder) {
@@ -290,7 +327,7 @@ async function testProjectCloseOnlyWorksIfAllSubprojectsAreClosed(
   }
   // This should fail as long as one subproject is still open:
   closeProject(axios, project)
-    .then(result => {
+    .then((result) => {
       throw Error(
         `Expected project.close to fail, got ${JSON.stringify(result.data)}`
       );
@@ -309,7 +346,7 @@ async function testProjectCloseOnlyWorksIfAllSubprojectsAreClosed(
   await impersonate("mstein", "test");
   await closeProject(axios, project);
 
-  await findProject(axios, closeProjectTest).then(x => {
+  await findProject(axios, closeProjectTest).then((x) => {
     if (x.data.status !== "closed") throw Error("failed");
   });
 
@@ -337,12 +374,12 @@ async function testWorkflowitemUpdate(folder) {
   const project = await findProject(axios, amazonFundProject);
 
   const subprojectTemplate = amazonFundProject.subprojects.find(
-    x => x.displayName === "Furniture"
+    (x) => x.displayName === "Furniture"
   );
   const subproject = await findSubproject(axios, project, subprojectTemplate);
 
   const workflowitemTemplate = subprojectTemplate.workflows.find(
-    x => x.displayName === "Payment final installment"
+    (x) => x.displayName === "Payment final installment"
   );
   const workflowitem = await findWorkflowitem(
     axios,
@@ -353,9 +390,7 @@ async function testWorkflowitemUpdate(folder) {
 
   if (workflowitem.data.documents.length !== 0) {
     throw new Error(
-      `workflowitem ${
-        workflowitem.data.id
-      } is not expected to already have documents attached. Note that the provisioning script shouldn't run more than once.`
+      `workflowitem ${workflowitem.data.id} is not expected to already have documents attached. Note that the provisioning script shouldn't run more than once.`
     );
   }
 
@@ -373,13 +408,13 @@ async function testWorkflowitemUpdate(folder) {
     workflowitemId: workflowitem.data.id,
     amountType: "N/A",
     amount: amount + 1,
-    currency
+    currency,
   });
   try {
     await axios.post("/workflowitem.close", {
       projectId: project.data.id,
       subprojectId: subproject.data.id,
-      workflowitemId: workflowitem.data.id
+      workflowitemId: workflowitem.data.id,
     });
     throw Error("This should not happen");
   } catch (error) {
@@ -392,7 +427,7 @@ async function testWorkflowitemUpdate(folder) {
     workflowitemId: workflowitem.data.id,
     amountType,
     amount,
-    currency
+    currency,
   });
 
   const updatedWorkflowitem = await findWorkflowitem(
@@ -425,13 +460,13 @@ async function testWorkflowitemUpdate(folder) {
     documents: [
       {
         id: documentId1,
-        base64: "VGhhdCdzIG91ciBmaXJzdCBjb250cmFjdC4="
+        base64: "VGhhdCdzIG91ciBmaXJzdCBjb250cmFjdC4=",
       },
       {
         id: documentId2,
-        base64: "VGhhdCdzIG91ciBzZWNvbmQgY29udHJhY3Qu"
-      }
-    ]
+        base64: "VGhhdCdzIG91ciBzZWNvbmQgY29udHJhY3Qu",
+      },
+    ],
   });
 
   const itemWithDocuments = await findWorkflowitem(
@@ -457,9 +492,9 @@ async function testWorkflowitemUpdate(folder) {
         {
           id: documentId1,
           base64:
-            "VGhhdCdzIG91ciBmaXJzdCBjb250cmFjdC4gSnVzdCBraWRkaW5nLCBJJ3ZlIGNoYW5nZWQgaXQhIG11YWhhaGE="
-        }
-      ]
+            "VGhhdCdzIG91ciBmaXJzdCBjb250cmFjdC4gSnVzdCBraWRkaW5nLCBJJ3ZlIGNoYW5nZWQgaXQhIG11YWhhaGE=",
+        },
+      ],
     });
     throw Error(
       `Updated an existing document, but that isn't supposed to work :(`
@@ -487,7 +522,7 @@ async function testWorkflowitemUpdate(folder) {
     workflowitemId: workflowitem.data.id,
     amountType,
     amount,
-    currency
+    currency,
   });
 }
 
@@ -500,7 +535,7 @@ async function testWorkflowitemReordering(folder) {
   const projectId = project.data.id;
 
   const subprojectTemplate = amazonFundProject.subprojects.find(
-    x => x.displayName === "Furniture"
+    (x) => x.displayName === "Furniture"
   );
   const subproject = await findSubproject(axios, project, subprojectTemplate);
   const subprojectId = subproject.data.id;
@@ -508,7 +543,7 @@ async function testWorkflowitemReordering(folder) {
   // We choose two adjacent workflowitems:
 
   const interimInstallmentTemplate = subprojectTemplate.workflows.find(
-    x => x.displayName === "Payment interim installment"
+    (x) => x.displayName === "Payment interim installment"
   );
   const interimInstName = interimInstallmentTemplate.displayName;
   const interimInstallment = await findWorkflowitem(
@@ -519,7 +554,7 @@ async function testWorkflowitemReordering(folder) {
   );
 
   const finalInstallmentTemplate = subprojectTemplate.workflows.find(
-    x => x.displayName === "Payment final installment"
+    (x) => x.displayName === "Payment final installment"
   );
   const finalInstName = finalInstallmentTemplate.displayName;
   const finalInstallment = await findWorkflowitem(
@@ -535,10 +570,10 @@ async function testWorkflowitemReordering(folder) {
       .get(
         `/workflowitem.list?projectId=${projectId}&subprojectId=${subprojectId}`
       )
-      .then(res => res.data.data.workflowitems)
-      .then(items =>
+      .then((res) => res.data.data.workflowitems)
+      .then((items) =>
         items
-          .map(x => x.data)
+          .map((x) => x.data)
           .reduce((acc, x, index) => {
             acc[x.displayName] = index;
             return acc;
@@ -553,11 +588,9 @@ async function testWorkflowitemReordering(folder) {
   }
 
   // Let's also check that at least one workflowitem of that subproject is closed:
-  if (!subprojectTemplate.workflows.some(x => x.status === "closed")) {
+  if (!subprojectTemplate.workflows.some((x) => x.status === "closed")) {
     throw Error(
-      `unexpected at least one *closed* workflowitem (subproject ${
-        subprojectTemplate.displayName
-      })`
+      `unexpected at least one *closed* workflowitem (subproject ${subprojectTemplate.displayName})`
     );
   }
 
@@ -565,7 +598,7 @@ async function testWorkflowitemReordering(folder) {
   await axios.post(`/subproject.reorderWorkflowitems`, {
     projectId,
     subprojectId,
-    ordering: [finalInstallment.data.id, interimInstallment.data.id]
+    ordering: [finalInstallment.data.id, interimInstallment.data.id],
   });
   const changedOrdering = await getOrderingAsMap();
   if (changedOrdering[finalInstName] === 0) {
@@ -586,12 +619,8 @@ async function testWorkflowitemReordering(folder) {
   if (changedOrdering[finalInstName] >= changedOrdering[interimInstName]) {
     throw Error(
       "The final installment workflowitem should have move before the interim installment workflowitem." +
-        ` Instead, final installment has moved from ${
-          originalOrdering[finalInstName]
-        } to ${changedOrdering[finalInstName]},` +
-        ` while interim installment has moved from ${
-          originalOrdering[interimInstName]
-        } to ${changedOrdering[interimInstName]}`
+        ` Instead, final installment has moved from ${originalOrdering[finalInstName]} to ${changedOrdering[finalInstName]},` +
+        ` while interim installment has moved from ${originalOrdering[interimInstName]} to ${changedOrdering[interimInstName]}`
     );
   }
 
@@ -599,7 +628,7 @@ async function testWorkflowitemReordering(folder) {
   await axios.post(`/subproject.reorderWorkflowitems`, {
     projectId,
     subprojectId,
-    ordering: []
+    ordering: [],
   });
 
   // Now the ordering should be restored:

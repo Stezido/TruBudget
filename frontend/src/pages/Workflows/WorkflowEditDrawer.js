@@ -8,7 +8,7 @@ import CardContent from "@material-ui/core/CardContent";
 import CardHeader from "@material-ui/core/CardHeader";
 
 import { workflowItemIntentOrder } from "../../permissions";
-import { PermissionsTable } from "../Common/Permissions/PermissionsScreen";
+import PermissionTable from "../Common/Permissions/PermissionsTable";
 import AssigneeSelection from "../Common/AssigneeSelection";
 
 import _isEmpty from "lodash/isEmpty";
@@ -55,7 +55,11 @@ const WorkflowEditDrawer = props => {
     tempDrawerAssignee,
     tempDrawerPermissions,
     storeAssignee,
-    projectId
+    projectId,
+    subprojectId,
+    myself,
+    subprojectValidator,
+    hasSubprojectValidator
   } = props;
   const permissions = _isEmpty(tempDrawerPermissions) ? getDefaultPermissions() : tempDrawerPermissions;
 
@@ -63,14 +67,14 @@ const WorkflowEditDrawer = props => {
     storeAssignee(assignee);
   };
 
-  const grantPermission = (_, intent, user) => {
+  const grantPermission = (intent, user) => {
     if (!permissions[intent].includes(user)) {
       permissions[intent].push(user);
     }
     storePermissions(permissions);
   };
 
-  const revokePermission = (_, intent, user) => {
+  const revokePermission = (intent, user) => {
     if (permissions[intent].includes(user)) {
       permissions[intent].splice(permissions[intent].indexOf(user), 1);
     }
@@ -89,7 +93,13 @@ const WorkflowEditDrawer = props => {
           variant="contained"
           color="primary"
           onClick={() => {
-            return showWorkflowItemPreview(projectId, selectedWorkflowItems, tempDrawerAssignee, tempDrawerPermissions);
+            return showWorkflowItemPreview(
+              projectId,
+              subprojectId,
+              selectedWorkflowItems,
+              tempDrawerAssignee,
+              tempDrawerPermissions
+            );
           }}
           style={styles.drawerUpdateButton}
           disabled={_isEmpty(tempDrawerAssignee) && _isEmpty(tempDrawerPermissions)}
@@ -112,15 +122,22 @@ const WorkflowEditDrawer = props => {
         <Card style={styles.assigneeCard}>
           <CardHeader subheader="Assignee" />
           <CardContent>
-            <AssigneeSelection assigneeId={tempDrawerAssignee} users={users} assign={assign} />
+            <AssigneeSelection
+              disabled={hasSubprojectValidator}
+              assigneeId={hasSubprojectValidator ? subprojectValidator : tempDrawerAssignee}
+              users={users}
+              assign={assign}
+            />
           </CardContent>
         </Card>
-        <PermissionsTable
+        <PermissionTable
           permissions={permissions}
           intentOrder={workflowItemIntentOrder}
-          user={users}
-          grant={grantPermission}
-          revoke={revokePermission}
+          userList={users}
+          addTemporaryPermission={grantPermission}
+          removeTemporaryPermission={revokePermission}
+          temporaryPermissions={permissions}
+          myself={myself}
         />
       </div>
     </Drawer>

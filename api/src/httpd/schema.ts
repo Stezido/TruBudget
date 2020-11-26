@@ -1,8 +1,8 @@
-import * as fastify from "fastify";
+import { FastifySchema } from "fastify";
 
 import { projectIntents } from "../authz/intents";
 
-export interface SwaggerSchema extends fastify.RouteSchema {
+export interface SwaggerSchema extends FastifySchema {
   description: string;
   tags: string[];
   summary: string;
@@ -107,12 +107,14 @@ const schemas = {
                     release: { type: "string", example: "1.0.0" },
                     commit: { type: "string", example: "f48b2af8e44f6a6d46f512efc68de35cb7e44c00" },
                     buildTimeStamp: { type: "string", example: "1546950454" },
+                    ping: { type: "number", example: "32.476300001144409" },
                   },
                 },
                 multichain: {
                   type: "object",
                   properties: {
                     release: { type: "string", example: "1.0.0" },
+                    ping: { type: "number", example: "32.476300001144409" },
                   },
                 },
               },
@@ -1966,6 +1968,7 @@ const schemas = {
               currency: { type: ["string", "null"], example: "EUR" },
               amountType: { type: "string", example: "disbursed" },
               billingDate: { type: "string", example: "2018-12-11T00:00:00.000Z" },
+              dueDate: { type: "string", example: "2018-12-11T00:00:00.000Z" },
               exchangeRate: { type: "string", example: "1.0" },
               documents: {
                 type: "array",
@@ -2287,7 +2290,9 @@ const schemas = {
                           assignee: { type: "string", example: "aSmith" },
                           currency: { type: "string", example: "EUR" },
                           billingDate: { type: "string", example: "2018-12-11T00:00:00.000Z" },
+                          dueDate: { type: "string", example: "2018-12-11T00:00:00.000Z" },
                           exchangeRate: { type: "string", example: "1.0" },
+                          workflowitemType: { type: "string", example: "general" },
                           documents: {
                             type: "array",
                             items: {
@@ -2666,7 +2671,7 @@ const schemas = {
         properties: {
           beforeId: {
             type: "string",
-            example: "9452eaa6-f28b-455c-bcb8-1ea0bc57946d",
+            example: "2cfd0663-1770-4184-974e-63129061d389",
           },
         },
       },
@@ -2893,7 +2898,7 @@ const schemas = {
             type: "object",
             additionalProperties: false,
             properties: {
-              notificationId: { type: "string", example: "c9a6d74d-9508-4960-b39e-72f90f292b74" },
+              notificationId: { type: "string", example: "2cfd0663-1770-4184-974e-63129061d389" },
             },
             required: ["notificationId"],
           },
@@ -2936,7 +2941,7 @@ const schemas = {
             properties: {
               notificationIds: {
                 type: "array",
-                items: { type: "string", example: "c9a6d74d-9508-4960-b39e-72f90f292b74" },
+                items: { type: "string", example: "2cfd0663-1770-4184-974e-63129061d389" },
               },
             },
             required: ["notificationIds"],
@@ -3289,7 +3294,7 @@ export function getSchema(server, id): Schema {
   const schema = schemas[id];
   return {
     // @ts-ignore: Unreachable code error
-    beforeHandler: [server.authenticate],
+    preValidation: [server.authenticate],
     ...schema,
   };
 }

@@ -1,10 +1,13 @@
 {
   "name": "trubudget-frontend",
-  "version": "1.3.0",
+  "version": "1.16.0",
   "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/openkfw/TruBudget"
+  },
+  "engines": {
+    "node": ">=8.0.0"
   },
   "license": "GPL-3.0-or-later",
   "author": "Jure Zakotnik <Jure.Zakotnik@kfw.de>",
@@ -14,51 +17,59 @@
     "Kevin Bader <kevin.bader@accenture.com>",
     "Sascha Kerbler <sascha.kerbler@accenture.com>",
     "Roman Schiefer <roman.schiefer@accenture.com>",
-    "Philip Pai <philip.pai@accenture.com>"
+    "Philip Pai <philip.pai@accenture.com>",
+    "Daniel Arnauer <daniel.arnauer@accenture.com>"
   ],
   "dependencies": {
     "@babel/runtime": "^7.5.5",
-    "@material-ui/core": "^3.9.3",
-    "@material-ui/icons": "^3.0.2",
+    "@material-ui/core": "^4.11.0",
+    "@material-ui/icons": "^4.9.1",
     "accounting": "^0.4.1",
+    "array-move": "^2.2.0",
     "axios": "^0.19.0",
-    "chart.js": "^2.8.0",
+    "chart.js": "^2.9.3",
+    "connected-react-router": "^6.6.1",
     "dayjs": "^1.8.14",
     "downshift": "^2.0.16",
     "file-saver": "^1.3.8",
     "history": "^4.9.0",
     "immutable": "^3.8.1",
-    "lodash": "^4.17.14",
+    "lodash": "^4.17.19",
     "react": "^16.8.6",
     "react-chartjs-2": "^2.7.6",
+    "react-debounce-input": "^3.2.2",
     "react-dom": "^16.8.6",
+    "react-highlighter": "^0.4.3",
     "react-infinite-scroller": "^1.2.4",
     "react-localization": "^1.0.13",
     "react-number-format": "^4.0.7",
-    "react-redux": "^5.0.3",
-    "react-router": "^4.0.0",
-    "react-router-redux": "^5.0.0-alpha.4",
-    "react-sortable-hoc": "^0.6.3",
+    "react-redux": "^7.1.3",
+    "react-router": "^5.1.2",
+    "react-sortable-hoc": "^1.10.1",
     "react-transition-group": "^2.9.0",
     "redux": "^3.6.0",
     "redux-debounced": "^0.4.0",
     "redux-immutable": "^4.0.0",
-    "redux-saga": "^1.0.2"
+    "redux-saga": "^1.0.2",
+    "seamless-immutable": "^7.1.3"
   },
   "devDependencies": {
     "@babel/register": "^7.4.4",
-    "eslint-config-prettier": "^4.2.0",
-    "prettier": "1.12.1",
+    "eslint": "^6.7.2",
+    "eslint-config-prettier": "^6.4.0",
+    "prettier": "1.19.1",
     "react-app-rewired": "^2.1.3",
-    "react-scripts": "^3.0.0"
+    "react-scripts": "^3.4.4",
+    "typescript": "^3.7.2"
   },
   "scripts": {
     "start": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "npm run check-translations",
-    "eject": "react-app-rewired eject",
+    "eject": "react-scripts eject",
     "check-translations": "node scripts/check-translations.js",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "eslint-check": "eslint --print-config ./src/index.js | eslint-config-prettier-check"
   },
   "proxy": "http://localhost:8080",
   "browserslist": [

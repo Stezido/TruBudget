@@ -1,11 +1,12 @@
 import Joi = require("joi");
+import { VError } from "verror";
 
 import Intent, { subprojectIntents } from "../../../authz/intents";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { randomString } from "../../hash";
 import * as AdditionalData from "../additional_data";
-import { BusinessEvent } from "../business_event";
+import { AlreadyExists } from "../errors/already_exists";
 import { InvalidCommand } from "../errors/invalid_command";
 import { NotAuthorized } from "../errors/not_authorized";
 import { NotFound } from "../errors/not_found";
@@ -16,9 +17,9 @@ import { Permissions } from "../permissions";
 import { CurrencyCode, currencyCodeSchema } from "./money";
 import * as Project from "./project";
 import { ProjectedBudget, projectedBudgetListSchema } from "./projected_budget";
+import WorkflowitemType, { workflowitemTypeSchema } from "../workflowitem_types/types";
 import * as Subproject from "./subproject";
 import * as SubprojectCreated from "./subproject_created";
-import { sourceSubprojects } from "./subproject_eventsourcing";
 
 export interface RequestData {
   projectId: Project.Id;
@@ -27,6 +28,8 @@ export interface RequestData {
   displayName: string;
   description?: string;
   assignee?: string;
+  validator?: string;
+  workflowitemType?: WorkflowitemType;
   currency: CurrencyCode;
   projectedBudgets?: ProjectedBudget[];
   additionalData?: object;
@@ -39,6 +42,8 @@ const requestDataSchema = Joi.object({
   displayName: Joi.string().required(),
   description: Joi.string().allow(""),
   assignee: Joi.string(),
+  validator: Joi.string(),
+  workflowitemType: workflowitemTypeSchema,
   currency: currencyCodeSchema.required(),
   projectedBudgets: projectedBudgetListSchema,
   additionalData: AdditionalData.schema,
@@ -59,48 +64,50 @@ export async function createSubproject(
   creatingUser: ServiceUser,
   reqData: RequestData,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<SubprojectCreated.Event>> {
   const publisher = creatingUser.id;
 
   const projectId = reqData.projectId;
   const subprojectId = reqData.subprojectId || randomString();
-  const subprojectCreated = SubprojectCreated.createEvent(ctx.source, publisher, projectId, {
+  const createEvent = SubprojectCreated.createEvent(ctx.source, publisher, projectId, {
     id: subprojectId,
     status: reqData.status || "open",
     displayName: reqData.displayName,
     description: reqData.description || "",
     assignee: reqData.assignee || creatingUser.id,
+    validator: reqData.validator,
+    workflowitemType: reqData.workflowitemType,
     currency: reqData.currency,
     projectedBudgets: reqData.projectedBudgets || [],
     permissions: newDefaultPermissionsFor(creatingUser.id),
     additionalData: reqData.additionalData || {},
   });
-
-  // Make sure for each organization and currency there is only one entry:
-  const badEntry = findDuplicateBudgetEntry(subprojectCreated.subproject.projectedBudgets);
-  if (badEntry !== undefined) {
-    const error = new Error(
-      `more than one projected budget for organization ${badEntry.organization} and currency ${
-        badEntry.currencyCode
-      }`,
-    );
-    return new InvalidCommand(ctx, subprojectCreated, [error]);
+  if (Result.isErr(createEvent)) {
+    return new VError(createEvent, "failed to create subproject created event");
   }
 
-  if (
-    await repository.subprojectExists(subprojectCreated.projectId, subprojectCreated.subproject.id)
-  ) {
-    return new PreconditionError(ctx, subprojectCreated, "subproject already exists");
+  // Make sure for each organization and currency there is only one entry:
+  const badEntry = findDuplicateBudgetEntry(createEvent.subproject.projectedBudgets);
+  if (badEntry !== undefined) {
+    return new AlreadyExists(
+      ctx,
+      createEvent,
+      `${badEntry.organization}:${badEntry.currencyCode}`,
+      `There already is a projected budget for organization ${badEntry.organization} and currency ${badEntry.currencyCode}`,
+    );
+  }
+
+  // Subproject already exists
+  if (await repository.subprojectExists(createEvent.projectId, createEvent.subproject.id)) {
+    return new AlreadyExists(ctx, createEvent, createEvent.subproject.id);
   }
 
   const projectPermissionsResult = await repository.projectPermissions(projectId);
   if (Result.isErr(projectPermissionsResult)) {
     const error = new PreconditionError(
       ctx,
-      subprojectCreated,
-      `cannot get project permissions for project ${projectId}: ${
-        projectPermissionsResult.message
-      }`,
+      createEvent,
+      `cannot get project permissions for project ${projectId}: ${projectPermissionsResult.message}`,
     );
     return error;
   }
@@ -121,15 +128,21 @@ export async function createSubproject(
         target: { projectId, projectPermissions },
       });
     }
+  } else {
+    return new PreconditionError(
+      ctx,
+      createEvent,
+      "user 'root' is not allowed to create subprojects",
+    );
   }
 
   // Check that the event is valid:
-  const result = SubprojectCreated.createFrom(ctx, subprojectCreated);
+  const result = SubprojectCreated.createFrom(ctx, createEvent);
   if (Result.isErr(result)) {
-    return new InvalidCommand(ctx, subprojectCreated, [result]);
+    return new InvalidCommand(ctx, createEvent, [result]);
   }
 
-  return { newEvents: [subprojectCreated] };
+  return createEvent;
 }
 
 function newDefaultPermissionsFor(userId: string): Permissions {

@@ -1,5 +1,5 @@
 import isEqual = require("lodash.isequal");
-
+import { VError } from "verror";
 import Intent from "../../../authz/intents";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
@@ -24,7 +24,7 @@ export async function grantProjectPermission(
   grantee: Identity,
   intent: Intent,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<BusinessEvent[]>> {
   const project = await repository.getProject(projectId);
 
   if (Result.isErr(project)) {
@@ -39,6 +39,9 @@ export async function grantProjectPermission(
     intent,
     grantee,
   );
+  if (Result.isErr(permissionGranted)) {
+    return new VError(permissionGranted, "failed to create permission granted event");
+  }
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -56,8 +59,8 @@ export async function grantProjectPermission(
 
   // Only emit the event if it causes any changes to the permissions:
   if (isEqual(project.permissions, updatedProject.permissions)) {
-    return { newEvents: [] };
+    return [];
   } else {
-    return { newEvents: [permissionGranted] };
+    return [permissionGranted];
   }
 }

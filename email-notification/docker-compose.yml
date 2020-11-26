@@ -1,0 +1,89 @@
+version: "3.2"
+services:
+  master-node:
+    build:
+      context: ../blockchain
+    environment:
+      RPC_PORT: ${RPC_PORT}
+      RPC_PASSWORD: ${RPC_PASSWORD}
+      ORGANIZATION: ${ORGANIZATION}
+      EMAIL_SERVICE: ${EMAIL_SERVICE}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    links:
+      - email-service
+    ports:
+      - "8000:${RPC_PORT}"
+      - "8085:8085"
+  email-service:
+    build:
+      context: .
+    command: ["npm", "start"]
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      HTTP_PORT: ${HTTP_PORT}
+      LOG_LEVEL: ${LOG_LEVEL}
+      # MODE: DEBUG
+    links:
+      - emaildb
+    ports:
+      - "8890:8890"
+  emaildb:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - 5432:5432
+  master-api:
+    build:
+      context: ../api
+    environment:
+      ORGANIZATION: ${ORGANIZATION}
+      ORGANIZATION_VAULT_SECRET: ${ORGANIZATION_VAULT_SECRET}
+      RPC_HOST: ${RPC_HOST}
+      RPC_PORT: ${RPC_PORT}
+      ROOT_SECRET: ${ROOT_SECRET}
+      RPC_PASSWORD: ${RPC_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - 8080:8080
+    links:
+      - master-node
+  provisioning:
+    image: trubudget/provisioning:latest
+    command: ["npm", "start"]
+    environment:
+      API_HOST: ${API_HOST}
+      API_PORT: ${API_PORT}
+      ENVIRONMENT_TYPE: ${ENVIRONMENT_TYPE}
+      ROOT_SECRET: ${ROOT_SECRET}
+      ORGANIZATION: ${ORGANIZATION}
+    links:
+      - master-api
+  frontend:
+    build:
+      context: ../frontend
+    environment:
+      REACT_APP_EMAIL_SERVICE_ENABLED: ${REACT_APP_EMAIL_SERVICE_ENABLED}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      PROD_API_HOST: ${PROD_API_HOST}
+      PROD_API_PORT: ${PROD_API_PORT}
+      TEST_API_HOST: ${TEST_API_HOST}
+      TEST_API_PORT: ${TEST_API_PORT}
+    ports:
+      - "81:80" # Mapping the nginx port
+    links:
+      - master-api

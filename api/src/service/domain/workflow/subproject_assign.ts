@@ -1,5 +1,4 @@
 import { VError } from "verror";
-
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
@@ -17,7 +16,7 @@ import * as SubprojectEventSourcing from "./subproject_eventsourcing";
 
 interface Repository {
   getSubproject(): Promise<Result.Type<Subproject.Subproject>>;
-  getUsersForIdentity(identity: Identity): Promise<UserRecord.Id[]>;
+  getUsersForIdentity(identity: Identity): Promise<Result.Type<UserRecord.Id[]>>;
 }
 
 export async function assignSubproject(
@@ -39,16 +38,17 @@ export async function assignSubproject(
   }
 
   // Create the new event:
-  const subprojectAssigned = SubprojectAssigned.createEvent(
+  const subprojectAssignedResult = SubprojectAssigned.createEvent(
     ctx.source,
     issuer.id,
     projectId,
     subprojectId,
     assignee,
   );
-  if (Result.isErr(subprojectAssigned)) {
-    return new VError(subprojectAssigned, "failed to create event");
+  if (Result.isErr(subprojectAssignedResult)) {
+    return new VError(subprojectAssignedResult, "failed to create event");
   }
+  const subprojectAssigned = subprojectAssignedResult;
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -70,20 +70,29 @@ export async function assignSubproject(
   subproject = result;
 
   // Create notification events:
-  const recipients = await repository.getUsersForIdentity(assignee);
-  const notifications = recipients
+  const recipientsResult = await repository.getUsersForIdentity(assignee);
+  if (Result.isErr(recipientsResult)) {
+    return new VError(recipientsResult, `fetch users for ${assignee} failed`);
+  }
+  const notifications = recipientsResult.reduce((notifications, recipient) => {
     // The issuer doesn't receive a notification:
-    .filter(userId => userId !== issuer.id)
-    .map(recipient =>
-      NotificationCreated.createEvent(
-        ctx.source,
-        issuer.id,
-        recipient,
-        subprojectAssigned,
-        projectId,
-        subprojectId,
-      ),
-    );
-
+    if (recipient !== issuer.id) {
+      const notification = NotificationCreated.createEvent(
+          ctx.source,
+          issuer.id,
+          recipient,
+          subprojectAssigned,
+          projectId,
+        );
+      if (Result.isErr(notification)) {
+          return new VError(notification, "failed to create notification event");
+        }
+      notifications.push(notification);
+    }
+    return notifications;
+  }, [] as NotificationCreated.Event[]);
+  if (Result.isErr(notifications)) {
+    return new VError(notifications, "failed to create notification events");
+  }
   return { newEvents: [subprojectAssigned, ...notifications], subproject };
 }

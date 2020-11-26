@@ -1,6 +1,7 @@
-import axios, { AxiosError, AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 import * as http from "http";
 import * as https from "https";
+import { performance } from "perf_hooks";
 
 import logger from "../lib/logger";
 import { ConnectionSettings } from "./RpcClient.h";
@@ -58,6 +59,7 @@ if (logger.levelVal >= logger.levels.values.debug) {
 export class RpcClient {
   private call: (method: string, params: any) => any;
   private instance: AxiosInstance;
+  private timeStamp;
 
   constructor(settings: ConnectionSettings) {
     const protocol = `${settings.protocol || "http"}`;
@@ -69,10 +71,24 @@ export class RpcClient {
       timeout: 90000,
       headers: { "Content-Type": "application/json" },
       withCredentials: true,
+      maxContentLength: 104857600,
       auth: {
         username: settings.username || "multichainrpc",
         password: settings.password,
       },
+    });
+    this.instance.interceptors.request.use((request: AxiosRequestConfig) => {
+      if (JSON.parse(request.data).method?.includes("getinfo")) {
+        this.timeStamp = performance.now();
+      }
+      return request;
+    });
+
+    this.instance.interceptors.response.use((response: AxiosResponse<any>) => {
+      if (JSON.parse(response.config.data).method === "getinfo") {
+        response.data.result.ping = performance.now() - this.timeStamp;
+      }
+      return response;
     });
   }
 
@@ -87,12 +103,12 @@ export class RpcClient {
     return new Promise<RpcResponse>(async (resolve, reject) => {
       this.instance
         .post("/", JSON.stringify(request))
-        .then(resp => {
+        .then((resp) => {
           // this is only on Response code 2xx
           logger.trace({ data: resp.data }, "Received valid response.");
 
           if (logger.levelVal >= logger.levels.values.debug) {
-            const countKey = `${method}(${params.map(x => JSON.stringify(x)).join(", ")})`;
+            const countKey = `${method}(${params.map((x) => JSON.stringify(x)).join(", ")})`;
             const hrtimeDiff = process.hrtime(startTime);
             const elapsedMilliseconds = (hrtimeDiff[0] * 1e9 + hrtimeDiff[1]) / 1e6;
             durations.set(countKey, (durations.get(countKey) || 0) + elapsedMilliseconds);
@@ -171,7 +187,7 @@ export class VanillaNodeJSRpcClient {
 
           message
             .setEncoding("utf8")
-            .on("data", chunk => (body += chunk))
+            .on("data", (chunk) => (body += chunk))
             .on("error", reject)
             .on("end", () => handleResponse(message, body));
         }
@@ -203,9 +219,7 @@ export class VanillaNodeJSRpcClient {
 
         const requestBody = JSON.stringify(request);
         logger.info(requestBody);
-        sendRequest(requestOptions, handleMessage)
-          .on("error", reject)
-          .end(requestBody);
+        sendRequest(requestOptions, handleMessage).on("error", reject).end(requestBody);
       });
     };
   }

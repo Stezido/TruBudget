@@ -1,5 +1,6 @@
 import isEqual = require("lodash.isequal");
 
+import { VError } from "verror";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
@@ -27,7 +28,7 @@ export async function setWorkflowitemOrdering(
   subprojectId: Subproject.Id,
   ordering: WorkflowitemOrdering.WorkflowitemOrdering,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<BusinessEvent[]>> {
   const subproject = await repository.getSubproject(projectId, subprojectId);
   if (Result.isErr(subproject)) {
     return new NotFound(ctx, "subproject", subprojectId);
@@ -36,7 +37,7 @@ export async function setWorkflowitemOrdering(
 
   if (isEqual(currentOrder, ordering)) {
     // Ordering hasn't changed, therefore do nothing
-    return { newEvents: [] };
+    return [];
   }
 
   const reorderEvent = WorkflowitemsReordered.createEvent(
@@ -46,6 +47,9 @@ export async function setWorkflowitemOrdering(
     subprojectId,
     ordering,
   );
+  if (Result.isErr(reorderEvent)) {
+    return new VError(reorderEvent, "failed to create reorder event");
+  }
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -63,8 +67,8 @@ export async function setWorkflowitemOrdering(
 
   // Only emit the event if it causes any changes:
   if (isEqual(subproject.workflowitemOrdering, result.workflowitemOrdering)) {
-    return { newEvents: [] };
+    return [];
   } else {
-    return { newEvents: [reorderEvent] };
+    return [reorderEvent];
   }
 }

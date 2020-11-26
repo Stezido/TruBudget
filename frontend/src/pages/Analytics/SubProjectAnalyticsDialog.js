@@ -9,14 +9,13 @@ import Toolbar from "@material-ui/core/Toolbar";
 import Typography from "@material-ui/core/Typography";
 import ArrowDropDownIcon from "@material-ui/icons/ArrowDropDown";
 import CloseIcon from "@material-ui/icons/Close";
-import React, { lazy, Suspense } from "react";
+import React, { forwardRef } from "react";
 import { connect } from "react-redux";
 
 import { getCurrencies } from "../../helper";
 import { closeAnalyticsDialog, getExchangeRates, storeDisplayCurrency } from "./actions";
 import strings from "../../localizeStrings";
-
-const SubProjectAnalytics = lazy(() => import("./SubProjectAnalytics"));
+import SubProjectAnalytics from "./SubProjectAnalytics";
 
 const styles = {
   container: {
@@ -28,22 +27,25 @@ const styles = {
   dropdown: {
     marginLeft: "auto",
     marginTop: "0"
+  },
+  loadingCharts: {
+    marginTop: "16px",
+    display: "flex",
+    justifyContent: "center"
   }
 };
 
 function getMenuItems(currencies) {
   return currencies.map((currency, index) => {
     return (
-      <MenuItem key={index} value={currency.value}>
+      <MenuItem key={index} data-test={`currency-menuitem-${currency.value}`} value={currency.value}>
         {currency.primaryText}
       </MenuItem>
     );
   });
 }
 
-function Transition(props) {
-  return <Slide direction="up" {...props} />;
-}
+const Transition = forwardRef((props, ref) => <Slide direction="up" {...props} ref={ref} />);
 
 const SubProjectAnalyticsDialog = ({
   projectId,
@@ -52,7 +54,8 @@ const SubProjectAnalyticsDialog = ({
   displayCurrency,
   closeAnalyticsDialog,
   storeDisplayCurrency,
-  getExchangeRates
+  getExchangeRates,
+  projectedBudgets
 }) => (
   <Dialog
     fullScreen
@@ -63,7 +66,12 @@ const SubProjectAnalyticsDialog = ({
   >
     <AppBar>
       <Toolbar>
-        <IconButton color="inherit" onClick={closeAnalyticsDialog} aria-label="Close">
+        <IconButton
+          data-test="close-analytics-button"
+          color="inherit"
+          onClick={closeAnalyticsDialog}
+          aria-label="Close"
+        >
           <CloseIcon />
         </IconButton>
         <Typography variant="h6" color="inherit">
@@ -81,6 +89,7 @@ const SubProjectAnalyticsDialog = ({
                 name: "currencies",
                 id: "currencies"
               }}
+              data-test="select-currencies"
               IconComponent={props => <ArrowDropDownIcon {...props} style={{ color: "white" }} />}
               style={{ color: "white" }}
             >
@@ -91,9 +100,12 @@ const SubProjectAnalyticsDialog = ({
       </Toolbar>
     </AppBar>
     <div style={styles.container}>
-      <Suspense fallback={<div>Loading...</div>}>
-        <SubProjectAnalytics projectId={projectId} subProjectId={subProjectId} />{" "}
-      </Suspense>
+      <SubProjectAnalytics
+        projectId={projectId}
+        subProjectId={subProjectId}
+        projectedBudgets={projectedBudgets}
+        getExchangeRates={getExchangeRates}
+      />
     </div>
   </Dialog>
 );

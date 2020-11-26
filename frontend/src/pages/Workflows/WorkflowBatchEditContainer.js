@@ -1,19 +1,15 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-
 import { toJS } from "../../helper";
 import withInitialLoading from "../Loading/withInitialLoading";
 import {
   assignWorkflowItem,
   disableWorkflowEdit,
-  fetchWorkflowItemPermissions,
-  grantWorkflowItemPermission,
   hideWorkflowItemPreview,
   resetSucceededWorkflowitems,
-  revokeWorkflowItemPermission,
   showWorkflowItemPreview,
   storePermissions,
-  storeWorkflowItemsAssignee,
+  storeWorkflowItemBatchAssignee,
   submitBatchForWorkflow
 } from "./actions";
 import WorkflowEditDrawer from "./WorkflowEditDrawer";
@@ -38,32 +34,30 @@ const mapStateToProps = state => {
     tempDrawerPermissions: state.getIn(["workflow", "tempDrawerPermissions"]),
     tempDrawerAssignee: state.getIn(["workflow", "tempDrawerAssignee"]),
     currentWorkflowitemPermissions: state.getIn(["workflow", "permissions"]),
-    permissions: state.getIn(["workflow", "permissions"]),
-    users: state.getIn(["login", "user"]),
+    permissions: state.getIn(["workflow", "permissions", "workflowitem"]),
+    users: state.getIn(["login", "enabledUsers"]),
     workflowActions: state.getIn(["workflow", "workflowActions"]),
     submittedWorkflowItems: state.getIn(["workflow", "submittedWorkflowItems"]),
     failedWorkflowItem: state.getIn(["workflow", "failedWorkflowItem"]),
     submitDone: state.getIn(["workflow", "submitDone"]),
-    submitInProgress: state.getIn(["workflow", "submitInProgress"])
+    submitInProgress: state.getIn(["workflow", "submitInProgress"]),
+    myself: state.getIn(["login", "id"]),
+    subprojectId: state.getIn(["workflow", "id"]),
+    hasSubprojectValidator: state.getIn(["workflow", "hasSubprojectValidator"]),
+    subprojectValidator: state.getIn(["workflow", "subprojectValidator"])
   };
 };
 
 const mapDispatchToProps = dispatch => {
   return {
     hideWorkflowItemPreview: () => dispatch(hideWorkflowItemPreview()),
-    grantWorkflowItemPermission: (pId, sId, wId, permission, user) =>
-      dispatch(grantWorkflowItemPermission(pId, sId, wId, permission, user, true)),
     assignWorkflow: (projectId, subProjectId, workflowId, identity) =>
       dispatch(assignWorkflowItem(projectId, subProjectId, workflowId, identity)),
     resetSucceededWorkflowitems: () => dispatch(resetSucceededWorkflowitems()),
-    revokeWorkflowItemPermission: (pId, sId, wId, permission, user) =>
-      dispatch(revokeWorkflowItemPermission(pId, sId, wId, permission, user, true)),
-    fetchWorkflowItemPermissions: (pId, wId, showLoading) =>
-      dispatch(fetchWorkflowItemPermissions(pId, wId, showLoading)),
-    storeAssignee: assignee => dispatch(storeWorkflowItemsAssignee(assignee)),
+    storeAssignee: assignee => dispatch(storeWorkflowItemBatchAssignee(assignee)),
     storePermissions: permissions => dispatch(storePermissions(permissions)),
-    showWorkflowItemPreview: (pId, resources, assignee, permissions) =>
-      dispatch(showWorkflowItemPreview(pId, resources, assignee, permissions)),
+    showWorkflowItemPreview: (pId, subprojectId, resources, assignee, permissions) =>
+      dispatch(showWorkflowItemPreview(pId, subprojectId, resources, assignee, permissions)),
     disableWorkflowEdit: () => dispatch(disableWorkflowEdit()),
     editWorkflowitems: (pId, subpId, actions) => dispatch(submitBatchForWorkflow(pId, subpId, actions, false))
   };

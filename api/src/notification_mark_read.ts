@@ -20,9 +20,7 @@ interface RequestBodyV1 {
 const requestBodyV1Schema = Joi.object({
   apiVersion: Joi.valid("1.0").required(),
   data: Joi.object({
-    notifications: Joi.array()
-      .items(Notification.idSchema)
-      .required(),
+    notifications: Joi.array().items(Notification.idSchema).required(),
   }).required(),
 });
 
@@ -36,7 +34,7 @@ function validateRequestBody(body: any): Result.Type<RequestBody> {
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: `Mark a set of notifications as "read".`,
       tags: ["notification"],
@@ -56,7 +54,7 @@ function mkSwaggerSchema(server: FastifyInstance) {
                 items: {
                   type: "string",
                   description: "Notification ID",
-                  example: "fff7242a-cd42-45e7-9719-8e41c219d8ee",
+                  example: "2cfd0663-1770-4184-974e-63129061d389",
                 },
               },
             },
@@ -79,7 +77,11 @@ function mkSwaggerSchema(server: FastifyInstance) {
 }
 
 interface Service {
-  markRead(ctx: Ctx, user: ServiceUser, notificationId: Notification.Id): Promise<void>;
+  markRead(
+    ctx: Ctx,
+    user: ServiceUser,
+    notificationIds: Notification.Id[],
+  ): Promise<Result.Type<void>>;
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
@@ -105,8 +107,9 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
       const { notifications } = bodyResult.data;
 
       try {
-        for (const id of notifications) {
-          await service.markRead(ctx, user, id);
+        const result = await service.markRead(ctx, user, notifications);
+        if (Result.isErr(result)) {
+          throw new VError(result, "notification.markRead failed");
         }
         const code = 200;
         const body = {

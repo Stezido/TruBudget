@@ -8,7 +8,11 @@ import {
   TAB_INDEX,
   SHOW_DASHBOARD_DIALOG,
   HIDE_DASHBOARD_DIALOG,
+  SHOW_PASSWORD_DIALOG,
+  HIDE_PASSWORD_DIALOG,
   FETCH_GROUPS_SUCCESS,
+  FETCH_USER_ASSIGNMENTS_SUCCESS,
+  CLEAN_USER_ASSIGNMENTS,
   GROUP_ID,
   GROUP_NAME,
   ADD_INITIAL_USER,
@@ -17,17 +21,20 @@ import {
   LIST_GLOBAL_PERMISSIONS_SUCCESS,
   CHECK_USER_PASSWORD_SUCCESS,
   CHECK_USER_PASSWORD_ERROR,
-  NEW_USER_PASSWORD,
-  NEW_USER_PASSWORD_CONFIRMATION,
   CHANGE_USER_PASSWORD_SUCCESS,
   STORE_NEW_PASSWORDS_MATCH,
-  USER_PASSWORD,
-  SET_PASSWORD
+  SET_PASSWORD,
+  SET_USERNAME_INVALID,
+  ADD_TEMPORARY_GLOBAL_PERMISSION,
+  REMOVE_TEMPORARY_GLOBAL_PERMISSION,
+  ENABLE_USER,
+  DISABLE_USER
 } from "./actions";
 
 const defaultState = fromJS({
   tabIndex: 0,
   dashboardDialogShown: false,
+  passwordDialogShown: false,
   userToAdd: {
     username: "",
     password: "",
@@ -35,9 +42,11 @@ const defaultState = fromJS({
     displayName: ""
   },
   globalPermissions: {},
+  temporaryGlobalPermissions: {},
   editId: "",
   dialogType: "",
   groups: [],
+  userAssignments: {},
   editDialogShown: false,
   groupToAdd: {
     groupId: "",
@@ -47,13 +56,18 @@ const defaultState = fromJS({
   userPassword: "",
   newPassword: "",
   newPasswordConfirmation: "",
-  newPasswordsMatch: true
+  newPasswordsMatch: true,
+  usernameInvalid: false
 });
 
 export default function userDashboardReducer(state = defaultState, action) {
   switch (action.type) {
     case FETCH_GROUPS_SUCCESS:
       return state.set("groups", fromJS(action.groups));
+    case FETCH_USER_ASSIGNMENTS_SUCCESS:
+      return state.set("userAssignments", fromJS(action.userAssignments));
+    case CLEAN_USER_ASSIGNMENTS:
+      return state.set("userAssignments", defaultState.get("userAssignments"));
     case GROUP_ID:
       return state.setIn(["groupToAdd", "groupId"], action.groupId);
     case GROUP_NAME:
@@ -90,36 +104,55 @@ export default function userDashboardReducer(state = defaultState, action) {
       return state.merge({
         dashboardDialogShown: false,
         userToAdd: defaultState.get("userToAdd"),
-        wrongPasswordGiven: undefined,
-        userPassword: "",
-        newPassword: "",
-        newPasswordConfirmation: "",
-        newPasswordsMatch: true
+        authenticationFailed: false,
+        globalPermissions: defaultState.get("globalPermissions"),
+        temporaryGlobalPermissions: defaultState.get("temporaryGlobalPermissions")
       });
+    case SHOW_PASSWORD_DIALOG:
+      return state.merge({
+        passwordDialogShown: true,
+        editId: action.editId
+      });
+    case HIDE_PASSWORD_DIALOG:
+      return state.merge({
+        passwordDialogShown: false,
+        authenticationFailed: false,
+        editId: defaultState.get("editId")
+      });
+
+    case ENABLE_USER:
+    case DISABLE_USER:
+      return state.merge({
+        editId: action.userId
+      });
+
     case LIST_GLOBAL_PERMISSIONS_SUCCESS:
-      return state.set("globalPermissions", action.data);
-    case USER_PASSWORD:
-      return state.set("userPassword", action.password);
-    case NEW_USER_PASSWORD:
-      return state.set("newPassword", action.password);
-    case NEW_USER_PASSWORD_CONFIRMATION:
-      return state.set("newPasswordConfirmation", action.password);
+      return state.set("globalPermissions", fromJS(action.data)).set("temporaryGlobalPermissions", fromJS(action.data));
     case CHECK_USER_PASSWORD_SUCCESS:
-      return state.set("wrongPasswordGiven", false);
+      return state.set("authenticationFailed", false);
     case CHECK_USER_PASSWORD_ERROR:
-      return state.set("wrongPasswordGiven", true);
+      return state.set("authenticationFailed", true);
     case CHANGE_USER_PASSWORD_SUCCESS:
       return state.merge({
-        dashboardDialogShown: false,
+        passwordDialogShown: false,
         userToAdd: defaultState.get("userToAdd"),
-        wrongPasswordGiven: undefined,
-        userPassword: "",
-        newPassword: "",
-        newPasswordConfirmation: "",
-        newPasswordsMatch: true
+        authenticationFailed: false
       });
     case STORE_NEW_PASSWORDS_MATCH:
       return state.set("newPasswordsMatch", action.newPasswordsMatch);
+    case SET_USERNAME_INVALID:
+      return state.set("usernameInvalid", action.usernameInvalid);
+    case ADD_TEMPORARY_GLOBAL_PERMISSION:
+      if (state.getIn(["temporaryGlobalPermissions", action.permission]) !== undefined) {
+        return state.updateIn(["temporaryGlobalPermissions", action.permission], users => [...users, action.userId]);
+      } else {
+        return state.mergeIn(["temporaryGlobalPermissions"], { [action.permission]: [action.userId] });
+      }
+    case REMOVE_TEMPORARY_GLOBAL_PERMISSION:
+      return state.updateIn(["temporaryGlobalPermissions", action.permission], users => [
+        ...users.slice(0, users.indexOf(action.userId)),
+        ...users.slice(users.indexOf(action.userId) + 1)
+      ]);
     default:
       return state;
   }

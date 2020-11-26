@@ -10,6 +10,7 @@ import * as GroupGet from "./domain/organization/group_get";
 import { Identity } from "./domain/organization/identity";
 import { ServiceUser } from "./domain/organization/service_user";
 import * as UserRecord from "./domain/organization/user_record";
+import { getUser } from "./user_query";
 
 // TODO move groups handling to domain layer + make sure the cache is only refreshed _once_
 
@@ -17,9 +18,9 @@ export async function getGroups(
   conn: ConnToken,
   ctx: Ctx,
   serviceUser: ServiceUser,
-): Promise<Group.Group[]> {
+): Promise<Result.Type<Group.Group[]>> {
   try {
-    const groups = await Cache.withCache(conn, ctx, cache =>
+    const groups = await Cache.withCache(conn, ctx, (cache) =>
       GroupGet.getAllGroups(ctx, serviceUser, {
         getGroupEvents: async () => {
           return cache.getGroupEvents();
@@ -28,7 +29,7 @@ export async function getGroups(
     );
     return groups;
   } catch (err) {
-    throw new VError(err, "failed to fetch groups");
+    return new VError(err, "failed to fetch groups");
   }
 }
 
@@ -38,8 +39,10 @@ export async function getGroup(
   serviceUser: ServiceUser,
   groupId: Group.Id,
 ): Promise<Result.Type<Group.Group>> {
-  const groups = await getGroups(conn, ctx, serviceUser);
-  const group = groups.find(x => x.id === groupId);
+  const groupsResult = await getGroups(conn, ctx, serviceUser);
+  if (Result.isErr(groupsResult)) return groupsResult;
+  const groups = groupsResult;
+  const group = groups.find((x) => x.id === groupId);
   if (group === undefined) {
     return new NotFound(ctx, "group", groupId);
   }
@@ -51,9 +54,11 @@ export async function getGroupsForUser(
   ctx: Ctx,
   serviceUser: ServiceUser,
   targetUserId: Identity,
-): Promise<Group.Group[]> {
-  const groups = await getGroups(conn, ctx, serviceUser);
-  return groups.filter(group => group.members.includes(targetUserId));
+): Promise<Result.Type<Group.Group[]>> {
+  const groupsResult = await getGroups(conn, ctx, serviceUser);
+  if (Result.isErr(groupsResult)) return groupsResult;
+  const groups = groupsResult;
+  return groups.filter((group) => group.members.includes(targetUserId));
 }
 
 export async function groupExists(
@@ -61,9 +66,11 @@ export async function groupExists(
   ctx: Ctx,
   serviceUser: ServiceUser,
   groupId: Group.Id,
-): Promise<boolean> {
-  const groups = await getGroups(conn, ctx, serviceUser);
-  return groups.find(x => x.id === groupId) !== undefined;
+): Promise<Result.Type<boolean>> {
+  const groupsResult = await getGroups(conn, ctx, serviceUser);
+  if (Result.isErr(groupsResult)) return groupsResult;
+  const groups = groupsResult;
+  return groups.find((x) => x.id === groupId) !== undefined;
 }
 
 /**
@@ -77,12 +84,20 @@ export async function resolveUsers(
   serviceUser: ServiceUser,
   identity: Identity,
   getGroupFn: typeof getGroup = getGroup,
+  getUserFn: typeof getUser = getUser,
   groupSet: Set<Group.Id> = new Set(),
-): Promise<UserRecord.Id[]> {
+): Promise<Result.Type<UserRecord.Id[]>> {
   const groupResult = await getGroupFn(conn, ctx, serviceUser, identity);
 
+  // if assignee is not a group, it is probably a user
   if (Result.isErr(groupResult)) {
-    return [identity];
+    //check if assignee does exist
+    const userResult = await getUserFn(conn, ctx, serviceUser, identity);
+    if (Result.isErr(userResult)) {
+      return new NotFound(ctx, "user", identity);
+    } else {
+      return [identity];
+    }
   }
 
   const users: UserRecord.Id[] = [];
@@ -96,9 +111,15 @@ export async function resolveUsers(
         serviceUser,
         member,
         getGroupFn,
+        getUserFn,
         groupSet,
       );
-      users.push(...resolvedUsers);
+
+      if (Result.isErr(resolvedUsers)) {
+        return new VError(resolvedUsers, "resolve users failed");
+      } else {
+        users.push(...resolvedUsers);
+      }
     }
   }
 

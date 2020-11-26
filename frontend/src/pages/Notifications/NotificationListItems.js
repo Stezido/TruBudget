@@ -1,19 +1,19 @@
-import { withStyles } from "@material-ui/core/styles";
-import IconButton from "@material-ui/core/IconButton";
-import Tooltip from "@material-ui/core/Tooltip";
 import Divider from "@material-ui/core/Divider";
+import IconButton from "@material-ui/core/IconButton";
 import ListItem from "@material-ui/core/ListItem";
 import ListItemIcon from "@material-ui/core/ListItemIcon";
 import ListItemText from "@material-ui/core/ListItemText";
+import { withStyles } from "@material-ui/core/styles";
+import Tooltip from "@material-ui/core/Tooltip";
 import Unread from "@material-ui/icons/Email";
 import Read from "@material-ui/icons/MailOutline";
 import LaunchIcon from "@material-ui/icons/ZoomIn";
 import dayjs from "dayjs";
 import React from "react";
-import classNames from "classnames";
-
 import { intentMapping, parseURI, getParentData, isAllowedToSee } from "./helper";
+import { dateFormat } from "../../helper";
 import strings from "../../localizeStrings";
+
 const styles = theme => ({
   row: {
     display: "flex",
@@ -42,7 +42,7 @@ const styles = theme => ({
     opacity: 1
   },
   unreadMessage: {
-    backgroundColor: theme.palette.grey.main
+    backgroundColor: theme.palette.grey.light
   }
 });
 
@@ -55,22 +55,24 @@ const NotificationListItems = ({
   notificationOffset
 }) => {
   notifications.reverse();
+
   return notifications.map((notification, index) => {
     const message = intentMapping(notification);
     const { businessEvent, id, isRead, metadata } = notification;
-    const createdAt = dayjs(businessEvent.time).fromNow();
+    const createdAt = dayjs(businessEvent.time).format(dateFormat());
     const redirectUri = parseURI({
       projectId: metadata.project ? metadata.project.id : undefined,
       subprojectId: metadata.subproject ? metadata.subproject.id : undefined
     });
     const testLabel = `notification-${isRead ? "read" : "unread"}`;
+    const dateTestLabel = "dateOfNotification";
     const { projectDisplayName, subprojectDisplayName } = getParentData(notification);
     return (
       <div key={index}>
         <Divider />
         <ListItem
           component="div"
-          className={classNames(classes.row, !isRead ? classes.unreadMessage : false)}
+          className={!isRead ? `${classes.row} ${classes.unreadMessage}` : `${classes.row}`}
           key={index}
           button={isRead ? false : true}
           data-test={testLabel}
@@ -92,6 +94,7 @@ const NotificationListItems = ({
             primary={message}
           />
           <ListItemText
+            data-test={`${dateTestLabel}-${index}`}
             className={classes.author}
             component="div"
             primary={businessEvent.publisher}

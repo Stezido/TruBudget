@@ -6,6 +6,7 @@ import IconButton from "@material-ui/core/IconButton";
 import List from "@material-ui/core/List";
 import ListItem from "@material-ui/core/ListItem";
 import ListItemText from "@material-ui/core/ListItemText";
+import ListItemAvatar from "@material-ui/core/ListItemAvatar";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
@@ -18,12 +19,13 @@ import DoneIcon from "@material-ui/icons/Check";
 import DateIcon from "@material-ui/icons/DateRange";
 import AssigneeIcon from "@material-ui/icons/Group";
 import LabelIcon from "@material-ui/icons/Label";
-import _isUndefined from "lodash/isUndefined";
+import _isEmpty from "lodash/isEmpty";
 import React from "react";
 
 import { formattedTag, statusIconMapping, statusMapping, toAmountString, unixTsToString } from "../../helper.js";
 import strings from "../../localizeStrings";
 import ProjectAnalyticsDialog from "../Analytics/ProjectAnalyticsDialog";
+import BudgetEmptyState from "../Common/BudgetEmptyState";
 import ProjectAssigneeContainer from "./ProjectAssigneeContainer";
 
 const styles = {
@@ -53,7 +55,8 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     paddingTop: "18px",
-    width: "31%"
+    width: "31%",
+    overflowWrap: "break-word"
   },
   projectAssignee: {
     display: "flex",
@@ -63,7 +66,13 @@ const styles = {
     width: "31%"
   },
   analytics: {
-    padding: "12px 0 "
+    padding: "12px 0 ",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center"
+  },
+  tableCell: {
+    padding: "5px"
   }
 };
 
@@ -94,68 +103,100 @@ const ProjectDetails = props => {
     canAssignProject,
     closeProject,
     canClose,
+    isDataLoading,
     projectProjectedBudgets,
     openAnalyticsDialog,
     projectTags
   } = props;
   const mappedStatus = statusMapping(projectStatus);
   const statusIcon = statusIconMapping[projectStatus];
-  const openSubprojects = subProjects.find(subproject => subproject.data.status === "open");
-  const closeDisabled = !(canClose && _isUndefined(openSubprojects)) || projectStatus === "closed";
+  const hasOpenSubprojects = !_isEmpty(subProjects.find(subproject => subproject.data.status === "open"));
+  const closeDisabled = !canClose || hasOpenSubprojects || projectStatus === "closed";
   const tags = displayTags(projectTags || []);
   return (
     <div style={styles.container}>
       <Card style={styles.card}>
         <List style={styles.projectDetails}>
           <ListItem>
-            {projectName ? <Avatar>{projectName[0]}</Avatar> : null}
+            {projectName ? (
+              <ListItemAvatar>
+                <Avatar>{projectName[0]}</Avatar>
+              </ListItemAvatar>
+            ) : null}
             <ListItemText primary={projectName} secondary={projectComment} />
           </ListItem>
           <ListItem>
-            <Avatar>
-              <DateIcon />
-            </Avatar>
+            <ListItemAvatar>
+              <Avatar>
+                <DateIcon />
+              </Avatar>
+            </ListItemAvatar>
             <ListItemText primary={unixTsToString(projectTS)} secondary={strings.common.created} />
           </ListItem>
           {tags.length > 0 ? (
             <ListItem>
-              <Avatar>
-                <LabelIcon />
-              </Avatar>
+              <ListItemAvatar>
+                <Avatar>
+                  <LabelIcon />
+                </Avatar>
+              </ListItemAvatar>
               <ListItemText primary={tags} />
             </ListItem>
           ) : null}
         </List>
-        <div style={styles.projectedBudget}>
-          <Typography variant="body1">{strings.common.projected_budget}</Typography>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>{strings.common.organization}</TableCell>
-                <TableCell align="right">{strings.common.amount}</TableCell>
-                <TableCell align="right">{strings.common.currency}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {projectProjectedBudgets.map(budget => (
-                <TableRow key={budget.organization + budget.currencyCode}>
-                  <TableCell>{budget.organization}</TableCell>
-                  <TableCell align="right">{toAmountString(budget.value)}</TableCell>
-                  <TableCell align="right">{budget.currencyCode}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div style={styles.analytics}>
-            <Button variant="outlined" color="primary" onClick={openAnalyticsDialog}>
-              <BarChartIcon />
-              {strings.project.project_details}
-            </Button>
-          </div>
+        <div style={styles.projectedBudget} data-test="project-projected-budget">
+          <Typography variant="body1">{strings.common.total_budget}</Typography>
+          {isDataLoading ? (
+            <div />
+          ) : projectProjectedBudgets.length > 0 ? (
+            <div>
+              <Table padding="none">
+                <TableHead>
+                  <TableRow>
+                    <TableCell style={styles.tableCell}>{strings.common.organization}</TableCell>
+                    <TableCell style={styles.tableCell} align="right">
+                      {strings.common.amount}
+                    </TableCell>
+                    <TableCell style={styles.tableCell} align="right">
+                      {strings.common.currency}
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {projectProjectedBudgets.map(budget => (
+                    <TableRow key={budget.organization + budget.currencyCode}>
+                      <TableCell style={styles.tableCell}>{budget.organization}</TableCell>
+                      <TableCell style={styles.tableCell} align="right">
+                        {toAmountString(budget.value)}
+                      </TableCell>
+                      <TableCell style={styles.tableCell} align="right">
+                        {budget.currencyCode}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div style={styles.analytics}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  data-test="details-analytics-button"
+                  onClick={openAnalyticsDialog}
+                >
+                  <BarChartIcon />
+                  {strings.project.project_details}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <BudgetEmptyState text={strings.common.no_budget_project} />
+          )}
         </div>
         <List style={styles.projectAssignee}>
           <ListItem>
-            <Avatar>{statusIcon}</Avatar>
+            <ListItemAvatar>
+              <Avatar>{statusIcon}</Avatar>
+            </ListItemAvatar>
             <ListItemText primary={mappedStatus} secondary={strings.common.status} />
             {projectStatus !== "closed" ? (
               <Tooltip
@@ -171,24 +212,21 @@ const ProjectDetails = props => {
             ) : null}
           </ListItem>
           <ListItem>
-            <Avatar style={styles.assingeeIcon}>
-              <AssigneeIcon />
-            </Avatar>
+            <ListItemAvatar>
+              <Avatar style={styles.assingeeIcon}>
+                <AssigneeIcon />
+              </Avatar>
+            </ListItemAvatar>
             <ListItemText
               primary={
-                <ProjectAssigneeContainer
-                  users={users}
-                  projectId={projectId}
-                  disabled={!canAssignProject}
-                  assignee={projectAssignee}
-                />
+                <ProjectAssigneeContainer users={users} disabled={!canAssignProject} assignee={projectAssignee} />
               }
               secondary={strings.common.assignee}
             />
           </ListItem>
         </List>
       </Card>
-      <ProjectAnalyticsDialog projectId={projectId} />
+      <ProjectAnalyticsDialog projectId={projectId} projectProjectedBudgets={projectProjectedBudgets} />
     </div>
   );
 };

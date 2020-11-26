@@ -19,7 +19,7 @@
 
 # Introduction
 
-TruBudget - a trusted public expenditure tool. A collaborative workflow tool and secured platform to track and coordinate the implementation of donor-funded investment projects. 
+TruBudget - a trusted public expenditure tool. A collaborative workflow tool and secured platform to track and coordinate the implementation of donor-funded investment projects.
 
 If you have questions or just want to talk to us, find us on [Gitter](https://gitter.im/Tru-Community/community)!
 
@@ -76,7 +76,7 @@ Once the application is started (and the provisioning is done), you can visit th
 http://localhost:80
 ```
 
-If you bootstraped an empty TruBudget instance, you need to provision some users first. In this case you have to log-in with the _root_, whose password is defined in the `.env` file with the environment variable `ROOT_SECRET`. The default value from the `.env_example` is: 
+If you bootstraped an empty TruBudget instance, you need to provision some users first. In this case you have to log-in with the _root_, whose password is defined in the `.env` file with the environment variable `ROOT_SECRET`. The default value from the `.env_example` is:
 
 ```
 User: root
@@ -154,14 +154,14 @@ In the node section you should see that you need to approve a new node and organ
 
 ## Using TruBudget programatically through its API
 
-TruBudget comes with a frontend, but we greatly encourage to create own frontends or attach your existing systems to TruBudget. Therefore everything you can do in TruBudget can be done through a well documented HTTP/JSON interface. You can access and test-drive the API using the swagger documentation which is exposed by the TruBudget API under the route `/api/documentation/index.html`. Since we have already two nodes running, lets access the API documentation of the node we deployed in the first step.
+TruBudget comes with a frontend, but we greatly encourage to create own frontends or attach your existing systems to TruBudget. Therefore everything you can do in TruBudget can be done through a well documented HTTP/JSON interface. You can access and test-drive the API using the swagger documentation which is exposed by the TruBudget API under the route `/api/documentation/static/index.html`. Since we have already two nodes running, lets access the API documentation of the node we deployed in the first step.
 
 ```
 For the prod network:
-http://localhost:8080/api/documentation/index.html
+http://localhost:8080/api/documentation/static/index.html
 
 For the test network:
-http://localhost:8081/api/documentation/index.html
+http://localhost:8081/api/documentation/static/index.html
 ```
 
 ## Hints and Pitfalls
@@ -178,15 +178,6 @@ Obviously this is just a short introduction on how to start and use the platform
 
 Checkout the [Contributor Guide](./doc/tutorials/contribute/Contributor-Guide.md) to learn how to set up your environment to start developing and debugging the TruBudget application.
 
-<!-- # Troubleshooting
-TBD -->
-
 # More Information
 
 Check out our [**Trubudget-Wiki**](./doc/README.md) to find out how Trubudget works.
-
-<!--# FAQ
-
-| Description | Link |
-| :---------- | :--- |
--->

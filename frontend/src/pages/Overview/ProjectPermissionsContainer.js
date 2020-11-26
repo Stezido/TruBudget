@@ -1,51 +1,107 @@
+import _isEmpty from "lodash/isEmpty";
+import _uniq from "lodash/uniq";
 import React, { Component } from "react";
 import { connect } from "react-redux";
-
-import PermissionsScreen from "../Common/Permissions/PermissionsScreen";
-import withInitialLoading from "../Loading/withInitialLoading";
-import { toJS } from "../../helper";
-import { fetchUser } from "../Login/actions";
-
-import _isEmpty from "lodash/isEmpty";
-import { projectIntentOrder } from "../../permissions";
+import { formatString, toJS } from "../../helper";
 import strings from "../../localizeStrings";
-import { hideProjectPermissions, fetchProjectPermissions, grantPermission, revokePermission } from "./actions";
+import { projectIntentOrder } from "../../permissions";
+import PermissionDialog from "../Common/Permissions/PermissionDialog";
+import withInitialLoading from "../Loading/withInitialLoading";
+import { fetchUser } from "../Login/actions";
+import { fetchGroups } from "../Users/actions";
+import {
+  addTemporaryPermission,
+  fetchProjectPermissions,
+  grantProjectPermission,
+  hideProjectPermissions,
+  removeTemporaryPermission,
+  revokeProjectPermission
+} from "./actions";
 
 class ProjectPermissionsContainer extends Component {
-  componentWillMount() {
-    this.props.fetchUser(true);
+  componentDidMount() {
+    this.props.fetchUser();
+    this.props.fetchGroups();
+    this.props.fetchProjectPermissions(this.props.projectId);
   }
 
-  componentWillReceiveProps(nextProps) {
-    if (!this.props.show && nextProps.show) {
-      const projectId = nextProps.id;
-      this.props.fetchProjectPermissions(projectId, true);
-    }
+  shouldComponentUpdate() {
+    return !this.props.isConfirmationDialogOpen;
   }
 
-  isEnabled(allowedIntents) {
+  grant = (permission, granteeId, granteeName) => {
+    this.props.grant(this.props.projectId, this.props.projectDisplayName, permission, granteeId, granteeName);
+  };
+
+  revoke = (permission, revokeeId, revokeeName) => {
+    this.props.revoke(this.props.projectId, this.props.projectDisplayName, permission, revokeeId, revokeeName);
+  };
+
+  hasOnlyViewPermissions(allowedIntents) {
     const necessaryIntents = ["project.intent.grantPermission", "project.intent.revokePermission"];
-    return necessaryIntents.some(i => allowedIntents.includes(i));
+    return necessaryIntents.every(i => !allowedIntents.includes(i));
+  }
+
+  /*
+   * Submit is disabled in the following cases
+   *  - Temporary permissions are added: Submit disabled if grant permissions are missing
+   *  - Temporary permissions are removed: Submit disabled if revoke permissions are missing
+   */
+  isSubmitDisabled(allowedIntents, projectPermissions, temporaryPermissions) {
+    if (_isEmpty(temporaryPermissions)) return true;
+
+    const hasGrantPermissions = allowedIntents.includes("project.intent.grantPermission");
+    const hasRevokePermissions = allowedIntents.includes("project.intent.revokePermission");
+    const temporaryPermissionsAdded = Object.keys(projectPermissions).some(intent => {
+      return temporaryPermissions[intent].some(id => !projectPermissions[intent].includes(id));
+    });
+    const temporaryPermissionsRemoved = Object.keys(projectPermissions).some(intent =>
+      projectPermissions[intent].some(id => !temporaryPermissions[intent].includes(id))
+    );
+
+    if ((!hasGrantPermissions && temporaryPermissionsAdded) || (!hasRevokePermissions && temporaryPermissionsRemoved)) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   getAllowedIntents = () => {
-    const { projects, id } = this.props;
-    if (projects && !_isEmpty(id)) {
-      const { allowedIntents } = projects.find(project => project.data.id === id);
-      return allowedIntents;
+    const { permissions, myself, groups } = this.props;
+    // get all permission that are assigned to the user
+    const userPermissions = Object.keys(permissions).filter(intent => permissions[intent].includes(myself));
+    if (typeof groups === undefined || groups.length === 0 || groups == null) {
+      return userPermissions;
+    } else {
+      // get all groups where the user belongs to
+      const filteredGroups = groups.filter(item => {
+        return item.users.includes(myself);
+      });
+      const groupIds = filteredGroups.map(item => item.groupId);
+      // get all permissions from groups the user belongs to
+      const groupPermissions = Object.keys(permissions).filter(intent =>
+        permissions[intent].some(member => groupIds.includes(member))
+      );
+      // remove duplicate permission (if User is in multiple groups with same permissions)
+      const combinedPermissions = _uniq([...groupPermissions, ...userPermissions]);
+      return combinedPermissions;
     }
-    return [];
   };
 
   render() {
     const allowedIntents = this.getAllowedIntents();
-
     return (
-      <PermissionsScreen
+      <PermissionDialog
         {...this.props}
-        title={strings.project.project_permissions_title}
+        open={this.props.permissionDialogShown}
+        id={this.props.projectId}
+        title={formatString(strings.permissions.dialog_title, this.props.projectDisplayName)}
         intentOrder={projectIntentOrder}
-        disabled={!this.isEnabled(allowedIntents)}
+        disabledUserSelection={this.hasOnlyViewPermissions(allowedIntents)}
+        disabledSubmit={this.isSubmitDisabled(allowedIntents, this.props.permissions, this.props.temporaryPermissions)}
+        grant={this.grant}
+        revoke={this.revoke}
+        userList={[...this.props.userList, ...this.props.groupList]}
       />
     );
   }
@@ -53,21 +109,31 @@ class ProjectPermissionsContainer extends Component {
 
 const mapStateToProps = state => {
   return {
-    permissions: state.getIn(["overview", "permissions"]),
-    user: state.getIn(["login", "user"]),
-    show: state.getIn(["overview", "permissionDialogShown"]),
+    permissions: state.getIn(["overview", "permissions", "project"]),
+    temporaryPermissions: state.getIn(["overview", "temporaryPermissions"]),
+    permissionDialogShown: state.getIn(["overview", "permissionDialogShown"]),
     myself: state.getIn(["login", "id"]),
-    id: state.getIn(["overview", "idForPermissions"])
+    userList: state.getIn(["login", "enabledUsers"]),
+    groupList: state.getIn(["login", "groupList"]),
+    projectId: state.getIn(["overview", "idForPermissions"]),
+    projectDisplayName: state.getIn(["overview", "displayNameForPermissions"]),
+    isConfirmationDialogOpen: state.getIn(["confirmation", "open"]),
+    groups: state.getIn(["users", "groups"])
   };
 };
 
 const mapDispatchToProps = dispatch => {
   return {
-    onClose: () => dispatch(hideProjectPermissions()),
-    grant: (projectId, permission, identity) => dispatch(grantPermission(projectId, permission, identity, true)),
-    revoke: (projectId, permission, identity) => dispatch(revokePermission(projectId, permission, identity, true)),
+    hidePermissionDialog: () => dispatch(hideProjectPermissions()),
+    grant: (pId, pName, permission, granteeId, granteeName) =>
+      dispatch(grantProjectPermission(pId, pName, permission, granteeId, granteeName, true)),
+    revoke: (pId, pName, permission, revokeeId, revokeeName) =>
+      dispatch(revokeProjectPermission(pId, pName, permission, revokeeId, revokeeName, true)),
     fetchProjectPermissions: (projectId, showLoading) => dispatch(fetchProjectPermissions(projectId, showLoading)),
-    fetchUser: showLoading => dispatch(fetchUser(showLoading))
+    fetchUser: showLoading => dispatch(fetchUser(showLoading)),
+    addTemporaryPermission: (permission, userId) => dispatch(addTemporaryPermission(permission, userId)),
+    removeTemporaryPermission: (permission, userId) => dispatch(removeTemporaryPermission(permission, userId)),
+    fetchGroups: () => dispatch(fetchGroups(true))
   };
 };
 

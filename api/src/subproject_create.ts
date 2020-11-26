@@ -12,6 +12,9 @@ import { ServiceUser } from "./service/domain/organization/service_user";
 import { ResourceMap } from "./service/domain/ResourceMap";
 import { projectedBudgetListSchema } from "./service/domain/workflow/projected_budget";
 import * as Subproject from "./service/domain/workflow/subproject";
+import WorkflowitemType, {
+  workflowitemTypeSchema,
+} from "./service/domain/workflowitem_types/types";
 import * as SubprojectCreate from "./service/subproject_create";
 
 interface RequestBodyV1 {
@@ -24,6 +27,8 @@ interface RequestBodyV1 {
       displayName: string;
       description?: string;
       assignee?: string;
+      validator?: string;
+      workflowitemType?: WorkflowitemType;
       currency: string;
       projectedBudgets?: Array<{
         organization: string;
@@ -41,10 +46,12 @@ const requestBodyV1Schema = Joi.object({
     projectId: Joi.string().required(),
     subproject: Joi.object({
       id: Subproject.idSchema,
-      status: Joi.valid("open", "closed"),
+      status: Joi.valid("open"),
       displayName: Joi.string().required(),
       description: Joi.string().allow(""),
       assignee: Joi.string(),
+      validator: Joi.string(),
+      workflowitemType: workflowitemTypeSchema,
       currency: Joi.string().required(),
       projectedBudgets: projectedBudgetListSchema,
       additionalData: AdditionalData.schema,
@@ -62,7 +69,7 @@ function validateRequestBody(body: any): Result.Type<RequestBody> {
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description:
         "Create a subproject and associate it to the given project.\n.\n" +
@@ -93,6 +100,8 @@ function mkSwaggerSchema(server: FastifyInstance) {
                   displayName: { type: "string", example: "townproject" },
                   description: { type: "string", example: "A town should be built" },
                   assignee: { type: "string", example: "aSmith" },
+                  validator: { type: "string", example: "aSmith" },
+                  workflowitemType: { type: "string", example: "general" },
                   currency: { type: "string", example: "EUR" },
                   projectedBudgets: {
                     type: "array",
@@ -149,7 +158,7 @@ interface Service {
     ctx: Ctx,
     user: ServiceUser,
     createRequest: SubprojectCreate.RequestData,
-  ): Promise<ResourceMap>;
+  ): Promise<Result.Type<ResourceMap>>;
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
@@ -179,6 +188,8 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
         displayName: bodyResult.data.subproject.displayName,
         description: bodyResult.data.subproject.description,
         assignee: bodyResult.data.subproject.assignee,
+        validator: bodyResult.data.subproject.validator,
+        workflowitemType: bodyResult.data.subproject.workflowitemType,
         currency: bodyResult.data.subproject.currency,
         projectedBudgets: bodyResult.data.subproject.projectedBudgets,
         additionalData: bodyResult.data.subproject.additionalData,
@@ -186,7 +197,11 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
 
       service
         .createSubproject(ctx, user, reqData)
-        .then((resourceIds: ResourceMap) => {
+        .then((result) => {
+          if (Result.isErr(result)) {
+            throw new VError(result, "project.createSubproject failed");
+          }
+          const resourceIds: ResourceMap = result;
           const code = 200;
           const body = {
             apiVersion: "1.0",
@@ -194,7 +209,7 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
           };
           reply.status(code).send(body);
         })
-        .catch(err => {
+        .catch((err) => {
           const { code, body } = toHttpError(err);
           reply.status(code).send(body);
         });

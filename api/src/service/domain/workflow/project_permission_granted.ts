@@ -21,12 +21,8 @@ export interface Event {
 
 export const schema = Joi.object({
   type: Joi.valid(eventType).required(),
-  source: Joi.string()
-    .allow("")
-    .required(),
-  time: Joi.date()
-    .iso()
-    .required(),
+  source: Joi.string().allow("").required(),
+  time: Joi.date().iso().required(),
   publisher: Joi.string().required(),
   projectId: Project.idSchema.required(),
   permission: Joi.valid(projectIntents).required(),
@@ -40,7 +36,7 @@ export function createEvent(
   permission: Intent,
   grantee: Identity,
   time: string = new Date().toISOString(),
-): Event {
+): Result.Type<Event> {
   const event = {
     type: eventType,
     source,
@@ -52,7 +48,7 @@ export function createEvent(
   };
   const validationResult = validate(event);
   if (Result.isErr(validationResult)) {
-    throw new VError(validationResult, `not a valid ${eventType} event`);
+    return new VError(validationResult, `not a valid ${eventType} event`);
   }
   return event;
 }
@@ -74,7 +70,7 @@ export function validate(input: any): Result.Type<Event> {
  */
 export function mutate(project: Project.Project, event: Event): Result.Type<void> {
   if (event.type !== "project_permission_granted") {
-    throw new VError(`illegal event type: ${event.type}`);
+    return new VError(`illegal event type: ${event.type}`);
   }
 
   const eligibleIdentities = project.permissions[event.permission] || [];

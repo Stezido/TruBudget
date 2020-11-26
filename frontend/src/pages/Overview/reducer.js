@@ -1,30 +1,38 @@
 import { fromJS, Set } from "immutable";
-
+import _isEmpty from "lodash/isEmpty";
 import strings from "../../localizeStrings";
-import { LOGOUT } from "../Login/actions";
+import { CONFIRMATION_CANCELLED, CONFIRMATION_CONFIRMED } from "../Confirmation/actions";
+import { SEARCH_BAR_DISPLAYED } from "../Navbar/actions";
 import {
+  ADD_PROJECT_TAG,
+  ADD_TEMPORARY_PROJECT_PERMISSION,
   CREATE_PROJECT_SUCCESS,
   FETCH_ALL_PROJECTS_SUCCESS,
   FETCH_PROJECT_PERMISSIONS_SUCCESS,
+  HIDE_PROJECT_ADDITIONAL_DATA,
   HIDE_PROJECT_DIALOG,
   HIDE_PROJECT_PERMISSIONS,
   PROJECT_COMMENT,
   PROJECT_CREATION_STEP,
   PROJECT_DELETED_PROJECTED_BUDGET,
   PROJECT_NAME,
-  PROJECT_PROJECTED_BUDGET,
+  ADD_PROJECT_PROJECTED_BUDGET,
+  EDIT_PROJECT_PROJECTED_BUDGET_AMOUNT,
   PROJECT_THUMBNAIL,
+  REMOVE_PROJECT_TAG,
+  REMOVE_TEMPORARY_PROJECT_PERMISSION,
   SHOW_CREATION_DIALOG,
   SHOW_EDIT_DIALOG,
-  SHOW_PROJECT_PERMISSIONS,
-  HIDE_PROJECT_ADDITIONAL_DATA,
   SHOW_PROJECT_ADDITIONAL_DATA,
-  ADD_PROJECT_TAG,
-  REMOVE_PROJECT_TAG
+  SHOW_PROJECT_PERMISSIONS,
+  STORE_FILTERED_PROJECTS,
+  STORE_HIGHLIGHTING_REGEX,
+  STORE_SEARCH_TERMS_AS_ARRAY
 } from "./actions";
 
 const defaultState = fromJS({
   projects: Set(),
+  filteredProjects: Set(),
   creationDialogShown: false,
   editDialogShown: false,
   projectToAdd: {
@@ -38,7 +46,9 @@ const defaultState = fromJS({
     tags: []
   },
   idForPermissions: "",
-  permissions: {},
+  displayNameForPermissions: "",
+  permissions: { project: {} },
+  temporaryPermissions: {},
   permissionDialogShown: false,
   currentStep: 0,
   initialFetch: false,
@@ -49,7 +59,9 @@ const defaultState = fromJS({
   allowedIntents: [],
   dialogTitle: strings.project.add_new_project,
   idForInfo: "",
-  isProjectAdditionalDataShown: false
+  isProjectAdditionalDataShown: false,
+  highlightingRegex: "",
+  searchTerms: []
 });
 
 export default function overviewReducer(state = defaultState, action) {
@@ -71,12 +83,21 @@ export default function overviewReducer(state = defaultState, action) {
         editDialogShown: true
       });
     case SHOW_PROJECT_PERMISSIONS:
-      return state.merge({ idForPermissions: action.id, permissionDialogShown: true });
-    case HIDE_PROJECT_PERMISSIONS:
       return state.merge({
-        idForPermissions: defaultState.get("id"),
-        permissionDialogShown: false,
-        permissions: fromJS({})
+        idForPermissions: action.id,
+        displayNameForPermissions: action.displayName,
+        permissionDialogShown: true,
+        permissions: defaultState.get("permissions"),
+        temporaryPermissions: defaultState.get("temporaryPermissions")
+      });
+    case HIDE_PROJECT_PERMISSIONS:
+    case CONFIRMATION_CONFIRMED:
+      return state.merge({
+        idForPermissions: defaultState.get("idForPermissions"),
+        displayNameForPermissions: defaultState.get("displayNameForPermissions"),
+        permissionDialogShown: defaultState.get("permissionDialogShown"),
+        permissions: defaultState.get("permissions"),
+        temporaryPermissions: defaultState.get("temporaryPermissions")
       });
     case SHOW_PROJECT_ADDITIONAL_DATA:
       return state.merge({
@@ -94,13 +115,34 @@ export default function overviewReducer(state = defaultState, action) {
       });
 
     case FETCH_PROJECT_PERMISSIONS_SUCCESS:
-      return state.set("permissions", fromJS(action.permissions));
+      return state
+        .setIn(["permissions", "project"], fromJS(action.permissions))
+        .set("temporaryPermissions", fromJS(action.permissions));
     case PROJECT_NAME:
       return state.setIn(["projectToAdd", "displayName"], action.name);
-    case PROJECT_PROJECTED_BUDGET:
+    case ADD_PROJECT_PROJECTED_BUDGET:
       return state.merge({
-        projectToAdd: state.getIn(["projectToAdd"]).set("projectedBudgets", fromJS(action.projectedBudgets))
+        projectToAdd: state.get("projectToAdd").merge({
+          projectedBudgets: [...state.getIn(["projectToAdd", "projectedBudgets"]).toJS(), action.projectedBudget]
+        })
       });
+    case EDIT_PROJECT_PROJECTED_BUDGET_AMOUNT:
+      let newStateWithEditedBudget;
+      state
+        .getIn(["projectToAdd", "projectedBudgets"])
+        .toJS()
+        .forEach((b, index) => {
+          if (
+            b.organization === action.projectedBudget.organization &&
+            b.currencyCode === action.projectedBudget.currencyCode
+          ) {
+            newStateWithEditedBudget = state.setIn(
+              ["projectToAdd", "projectedBudgets", index, "value"],
+              action.budgetAmountEdit
+            );
+          }
+        });
+      return newStateWithEditedBudget;
     case PROJECT_DELETED_PROJECTED_BUDGET:
       const projectedBudgets = state.getIn(["projectToAdd", "projectedBudgets"]).toJS();
       const projectedBudgetsToDelete = action.projectedBudgets;
@@ -127,20 +169,51 @@ export default function overviewReducer(state = defaultState, action) {
     }
     case REMOVE_PROJECT_TAG: {
       const tags = state.getIn(["projectToAdd", "tags"]);
-      return state.setIn(["projectToAdd", "tags"], tags.filter(tag => tag !== action.tag));
+      return state.setIn(
+        ["projectToAdd", "tags"],
+        tags.filter(tag => tag !== action.tag)
+      );
     }
     case PROJECT_THUMBNAIL:
       return state.setIn(["projectToAdd", "thumbnail"], action.thumbnail);
     case CREATE_PROJECT_SUCCESS:
-      return state.set("projectToAdd", defaultState.getIn(["projectToAdd"]));
+      return state.merge({
+        projectToAdd: defaultState.getIn(["projectToAdd"]),
+        searchTerms: defaultState.get("searchTerms"),
+        highlightingRegex: defaultState.get("highlightingRegex")
+      });
     case PROJECT_CREATION_STEP:
       return state.set("currentStep", action.step);
     case FETCH_ALL_PROJECTS_SUCCESS:
+      // While searching, fetching projects may not update the project list
+      if (state.get("searchTerms").size === 0) {
+        state = state.set("filteredProjects", action.projects);
+      }
+      return state.set("projects", fromJS(action.projects));
+    case ADD_TEMPORARY_PROJECT_PERMISSION:
+      return state.updateIn(["temporaryPermissions", action.permission], users => users.push(action.userId));
+    case REMOVE_TEMPORARY_PROJECT_PERMISSION:
+      return state.updateIn(["temporaryPermissions", action.permission], users =>
+        users.filter(user => user !== action.userId)
+      );
+    case CONFIRMATION_CANCELLED:
+      return state.set(
+        "temporaryPermissions",
+        !_isEmpty(action.permissions) && !_isEmpty(action.permissions.project)
+          ? fromJS(action.permissions.project)
+          : defaultState.get("temporaryPermissions")
+      );
+    case STORE_FILTERED_PROJECTS:
+      return state.set("filteredProjects", fromJS(action.filteredProjects));
+    case STORE_HIGHLIGHTING_REGEX:
+      return state.set("highlightingRegex", fromJS(action.highlightingRegex));
+    case STORE_SEARCH_TERMS_AS_ARRAY:
+      return state.set("searchTerms", fromJS(action.searchTerms));
+    case SEARCH_BAR_DISPLAYED:
       return state.merge({
-        projects: fromJS(action.projects)
+        searchTerms: defaultState.get("searchTerms"),
+        highlightingRegex: defaultState.get("highlightingRegex")
       });
-    case LOGOUT:
-      return defaultState;
     default:
       return state;
   }

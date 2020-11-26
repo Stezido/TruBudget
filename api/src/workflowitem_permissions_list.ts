@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -7,11 +8,13 @@ import { Ctx } from "./lib/ctx";
 import { isNonemptyString } from "./lib/validation";
 import * as Result from "./result";
 import { ServiceUser } from "./service/domain/organization/service_user";
-import { Permissions } from "./service/domain/permissions";
+import { filterPermissions, Permissions } from "./service/domain/permissions";
+import { Identity } from "./service/domain/organization/identity";
+import Intent, { workflowitemIntents } from "./authz/intents";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: "See the permissions for a given workflowitem.",
       tags: ["workflowitem"],
@@ -80,8 +83,16 @@ function sendErrorIfEmpty(reply, resourceId) {
   return false;
 }
 
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+    subprojectId: string;
+    workflowitemId: string;
+  };
+}
+
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/workflowitem.intent.listPermissions`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -102,25 +113,28 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
         return;
       }
       try {
-        const workflowitemPermissions = await service.listWorkflowitemPermissions(
+        const permissionsResult = await service.listWorkflowitemPermissions(
           ctx,
           user,
           projectId,
           subprojectId,
           workflowitemId,
         );
-
-        if (Result.isErr(workflowitemPermissions)) {
-          workflowitemPermissions.message = `could not list project permissions: ${
-            workflowitemPermissions.message
-          }`;
-          throw workflowitemPermissions;
+        if (Result.isErr(permissionsResult)) {
+          throw new VError(permissionsResult, "workflowitem.intent.listPermissions failed");
         }
+        const permissions = permissionsResult;
+
+        // TODO use an exposedPermissions interface instead of a filter function
+        const filteredPermissions = filterPermissions(permissions, [
+          "workflowitem.close",
+          "workflowitem.archive",
+        ]);
 
         const code = 200;
         const body = {
           apiVersion: "1.0",
-          data: workflowitemPermissions,
+          data: filteredPermissions,
         };
         reply.status(code).send(body);
       } catch (err) {

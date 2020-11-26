@@ -2,8 +2,7 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 
 import { toJS } from "../../helper";
-import strings from "../../localizeStrings";
-import { canAssignSubProject, canCloseSubProject, canViewSubProjectPermissions } from "../../permissions";
+import { canAssignSubProject, canViewSubProjectPermissions } from "../../permissions";
 import globalStyles from "../../styles";
 import { openAnalyticsDialog } from "../Analytics/actions";
 import AdditionalInfo from "../Common/AdditionalInfo";
@@ -14,9 +13,9 @@ import { setSelectedView } from "../Navbar/actions";
 import { openHistory } from "../Notifications/actions";
 import SubprojectHistoryDrawer from "../SubProjects/SubprojectHistoryDrawer";
 import {
-  closeWorkflowitemDetailsDialog,
   closeSubproject,
   closeWorkflowItem,
+  closeWorkflowitemDetailsDialog,
   disableWorkflowEdit,
   enableSubProjectBudgetEdit,
   enableWorkflowEdit,
@@ -50,13 +49,16 @@ class WorkflowContainer extends Component {
     super(props);
     const path = props.location.pathname.split("/");
     this.projectId = path[2];
-    this.subProjectId = path[3];
+    this.subprojectId = path[3];
+    this.state = {
+      isDataFetched: false
+    };
   }
 
-  componentWillMount() {
-    this.props.setSelectedView(this.subProjectId, "subProject");
-    this.props.fetchAllSubprojectDetails(this.projectId, this.subProjectId, true);
+  componentDidMount() {
+    this.props.setSelectedView(this.subprojectId, "subProject");
     this.props.fetchUser();
+    this.props.fetchAllSubprojectDetails(this.projectId, this.subprojectId, true);
   }
 
   componentWillUnmount() {
@@ -68,49 +70,53 @@ class WorkflowContainer extends Component {
   closeSubproject = () => {
     const openWorkflowItems = this.props.workflowItems.find(wItem => wItem.data.status === "open");
     if (!openWorkflowItems) {
-      this.props.closeSubproject(this.projectId, this.subProjectId);
+      this.props.closeSubproject(this.projectId, this.subprojectId);
     }
   };
 
-  closeWorkflowItem = wId => this.props.closeWorkflowItem(this.projectId, this.subProjectId, wId);
+  closeWorkflowItem = wId => this.props.closeWorkflowItem(this.projectId, this.subprojectId, wId);
 
-  closeSubproject = () => this.props.closeSubproject(this.projectId, this.subProjectId, true);
+  closeSubproject = () => this.props.closeSubproject(this.projectId, this.subprojectId, true);
 
   update = () => {
-    this.props.updateSubProject(this.projectId, this.subProjectId);
+    this.props.updateSubProject(this.projectId, this.subprojectId);
   };
 
   addLiveUpdates = () => {
-    return <LiveUpdates update={this.update} />;
+    return this.props.isLiveUpdatesSubprojectEnabled ? <LiveUpdates update={this.update} /> : null;
   };
 
   render() {
     const canAssignSubproject = canAssignSubProject(this.props.allowedIntents);
-    const canCloseSubproject = canCloseSubProject(this.props.allowedIntents);
+    const canCloseSubproject = this.props.currentUser === this.props.assignee;
     const canViewPermissions = canViewSubProjectPermissions(this.props.allowedIntents);
     return (
       <div>
         {!this.props.workflowSortEnabled ? this.addLiveUpdates() : null}
         <div style={globalStyles.innerContainer}>
-          <SubProjectDetails
-            {...this.props}
-            canViewPermissions={canViewPermissions}
-            canAssignSubproject={canAssignSubproject}
-            closeSubproject={this.closeSubproject}
-            canCloseSubproject={canCloseSubproject}
-          />
+          <div>
+            <SubProjectDetails
+              {...this.props}
+              projectId={this.projectId}
+              subprojectId={this.subprojectId}
+              canViewPermissions={canViewPermissions}
+              canAssignSubproject={canAssignSubproject}
+              closeSubproject={this.closeSubproject}
+              canCloseSubproject={canCloseSubproject}
+              isDataLoading={this.props.isDataLoading}
+            />
 
-          <WorkflowItemPermissionsContainer
-            projectId={this.projectId}
-            subProjectId={this.subProjectId}
-            title={strings.workflow.workflow_permissions_title}
-          />
-          <Workflow
-            {...this.props}
-            projectId={this.projectId}
-            subProjectId={this.subProjectId}
-            closeWorkflowItem={this.closeWorkflowItem}
-          />
+            {this.props.permissionDialogShown ? (
+              <WorkflowItemPermissionsContainer projectId={this.projectId} subProjectId={this.subprojectId} />
+            ) : null}
+            <Workflow
+              {...this.props}
+              projectId={this.projectId}
+              subProjectId={this.subprojectId}
+              closeWorkflowItem={this.closeWorkflowItem}
+              isDataLoading={this.props.isDataLoading}
+            />
+          </div>
           <WorkflowDialogContainer location={this.props.location} />
           <AdditionalInfo
             resources={this.props.workflowItems}
@@ -118,8 +124,8 @@ class WorkflowContainer extends Component {
             hideAdditionalData={this.props.hideWorkflowitemAdditionalData}
             {...this.props}
           />
-          <SubprojectHistoryDrawer projectId={this.projectId} subprojectId={this.subProjectId} />
-          <WorkflowBatchEditContainer projectId={this.projectId} subProjectId={this.subProjectId} />
+          <SubprojectHistoryDrawer projectId={this.projectId} subprojectId={this.subprojectId} />
+          <WorkflowBatchEditContainer projectId={this.projectId} subProjectId={this.subprojectId} />
         </div>
       </div>
     );
@@ -140,10 +146,9 @@ const mapDispatchToProps = (dispatch, ownProps) => {
     closeWorkflowitemDetailsDialog: () => dispatch(closeWorkflowitemDetailsDialog()),
     closeSubproject: (pId, sId) => dispatch(closeSubproject(pId, sId, true)),
     closeWorkflowItem: (pId, sId, wId) => dispatch(closeWorkflowItem(pId, sId, wId, true)),
-
     setSelectedView: (id, section) => dispatch(setSelectedView(id, section)),
 
-    showWorkflowItemPermissions: wId => dispatch(showWorkflowItemPermissions(wId)),
+    showWorkflowItemPermissions: (wId, wDisplayName) => dispatch(showWorkflowItemPermissions(wId, wDisplayName)),
     updateWorkflowOrderOnState: items => dispatch(updateWorkflowOrderOnState(items)),
     enableWorkflowEdit: () => dispatch(enableWorkflowEdit()),
     disableWorkflowEdit: () => dispatch(disableWorkflowEdit()),
@@ -157,8 +162,32 @@ const mapDispatchToProps = (dispatch, ownProps) => {
     fetchUser: () => dispatch(fetchUser(true)),
     hideWorkflowDialog: () => dispatch(hideWorkflowDialog()),
     isWorkflowApprovalRequired: approvalRequired => dispatch(isWorkflowApprovalRequired(approvalRequired)),
-    showEditDialog: (id, displayName, amount, exchangeRate, amountType, description, currency, documents) =>
-      dispatch(showEditDialog(id, displayName, amount, exchangeRate, amountType, description, currency, documents)),
+    showEditDialog: (
+      id,
+      displayName,
+      amount,
+      exchangeRate,
+      amountType,
+      description,
+      currency,
+      documents,
+      dueDate,
+      workflowitemType
+    ) =>
+      dispatch(
+        showEditDialog(
+          id,
+          displayName,
+          amount,
+          exchangeRate,
+          amountType,
+          description,
+          currency,
+          documents,
+          dueDate,
+          workflowitemType
+        )
+      ),
     saveWorkflowItemsBeforeSort: workflowItems => dispatch(saveWorkflowItemsBeforeSort(workflowItems)),
     addDocument: (payload, name) => dispatch(addDocument(payload, name)),
     storeWorkflowItemsSelected: workflowItems => dispatch(storeWorkflowItemsSelected(workflowItems)),
@@ -173,9 +202,12 @@ const mapStateToProps = state => {
     id: state.getIn(["workflow", "id"]),
     displayName: state.getIn(["workflow", "displayName"]),
     description: state.getIn(["workflow", "description"]),
+    dueDate: state.getIn(["workflow", "dueDate"]),
     status: state.getIn(["workflow", "status"]),
     amount: state.getIn(["workflow", "amount"]),
     currency: state.getIn(["workflow", "currency"]),
+    subprojectValidator: state.getIn(["workflow", "subprojectValidator"]),
+    fixedWorkflowitemType: state.getIn(["workflow", "fixedWorkflowitemType"]),
     assignee: state.getIn(["workflow", "assignee"]),
     created: state.getIn(["workflow", "created"]),
     allowedIntents: state.getIn(["workflow", "allowedIntents"]),
@@ -190,12 +222,18 @@ const mapStateToProps = state => {
     budgetEditEnabled: state.getIn(["workflow", "subProjectBudgetEditEnabled"]),
     workflowDocuments: state.getIn(["documents", "tempDocuments"]),
     validatedDocuments: state.getIn(["documents", "validatedDocuments"]),
-    users: state.getIn(["login", "user"]),
+    users: state.getIn(["login", "enabledUsers"]),
     selectedWorkflowItems: state.getIn(["workflow", "selectedWorkflowItems"]),
     projectedBudgets: state.getIn(["workflow", "projectedBudgets"]),
     idForInfo: state.getIn(["workflow", "idForInfo"]),
     isWorkflowitemAdditionalDataShown: state.getIn(["workflow", "isWorkflowitemAdditionalDataShown"]),
-    isLoading: state.getIn(["workflow", "isHistoryLoading"])
+    isLoading: state.getIn(["workflow", "isHistoryLoading"]),
+    isRoot: state.getIn(["navbar", "isRoot"]),
+    permissionDialogShown: state.getIn(["workflow", "showWorkflowPermissions"]),
+    idsPermissionsUnassigned: state.getIn(["workflow", "idsPermissionsUnassigned"]),
+    isDataLoading: state.getIn(["loading", "loadingVisible"]),
+    isLiveUpdatesSubprojectEnabled: state.getIn(["workflow", "isLiveUpdatesSubprojectEnabled"]),
+    currentUser: state.getIn(["login", "id"])
   };
 };
 

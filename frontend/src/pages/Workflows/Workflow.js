@@ -1,16 +1,15 @@
-import React from "react";
-
 import Card from "@material-ui/core/Card";
 import Fab from "@material-ui/core/Fab";
 import ContentAdd from "@material-ui/icons/Add";
 import HistoryIcon from "@material-ui/icons/Reorder";
+import React from "react";
 
-import WorkflowTable from "./WorkflowTable";
 import { canCreateWorkflowItems } from "../../permissions";
+import WorkflowTable from "./WorkflowTable";
 
 const Workflow = props => {
   const subprojectStatus = props.status;
-  const allowedToCreateWorkflows = canCreateWorkflowItems(props.allowedIntents);
+  const allowedToCreateWorkflows = canCreateWorkflowItems(props.allowedIntents) && !props.isRoot;
   const createDisabled = props.workflowSortEnabled
     ? props.workflowSortEnabled
     : !allowedToCreateWorkflows || subprojectStatus === "closed";
@@ -21,9 +20,7 @@ const Workflow = props => {
         position: "relative"
       }}
     >
-      <Card>
-        <WorkflowTable {...props} />
-      </Card>
+      <Card>{props.isDataLoading ? <div /> : <WorkflowTable {...props} />}</Card>
       <div
         style={{
           display: "flex",
@@ -49,6 +46,7 @@ const Workflow = props => {
         </Fab>
         <Fab
           id="subproject-history-button"
+          data-test="subproject-history-button"
           size="small"
           disabled={props.workflowSortEnabled}
           onClick={props.openHistory}

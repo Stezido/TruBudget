@@ -1,5 +1,4 @@
 import Paper from "@material-ui/core/Paper";
-import { withStyles } from "@material-ui/core/styles";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
@@ -11,21 +10,16 @@ import React from "react";
 
 import strings from "../../localizeStrings";
 import ActionButton from "../Common/ActionButton";
+import { UserGroupsEmptyState } from "./UsersGroupsEmptyStates";
 
-const styles = {
-  icon: {
-    color: "black"
-  }
-};
 const sortGroups = groups => {
   return _sortBy(groups, group => group.id && group.displayName);
 };
-const GroupsTable = ({ groups, showDashboardDialog, classes, allowedIntents }) => {
-  const editGroupDisplayed = allowedIntents.includes("global.createGroup");
 
+const GroupsTable = ({ groups, showDashboardDialog, allowedIntents, userId }) => {
   const sortedGroups = sortGroups(groups);
 
-  return (
+  return sortedGroups.length > 0 ? (
     <Paper>
       <Table>
         <TableHead>
@@ -38,6 +32,9 @@ const GroupsTable = ({ groups, showDashboardDialog, classes, allowedIntents }) =
         </TableHead>
         <TableBody data-test="grouptablebody">
           {sortedGroups.map(group => {
+            const isAllowedToEditGroup =
+              group.permissions["group.addUser"]?.includes(userId) &&
+              group.permissions["group.removeUser"]?.includes(userId);
             return (
               <TableRow data-test={`group-${group.groupId}`} key={group.groupId}>
                 <TableCell component="th" scope="row">
@@ -48,7 +45,7 @@ const GroupsTable = ({ groups, showDashboardDialog, classes, allowedIntents }) =
                 <TableCell>
                   <div style={{ display: "flex" }}>
                     <ActionButton
-                      notVisible={!editGroupDisplayed}
+                      notVisible={!isAllowedToEditGroup}
                       onClick={() => showDashboardDialog("editGroup", group.groupId)}
                       title={strings.common.edit}
                       icon={<EditIcon />}
@@ -62,6 +59,8 @@ const GroupsTable = ({ groups, showDashboardDialog, classes, allowedIntents }) =
         </TableBody>
       </Table>
     </Paper>
+  ) : (
+    <UserGroupsEmptyState />
   );
 };
-export default withStyles(styles)(GroupsTable);
+export default GroupsTable;

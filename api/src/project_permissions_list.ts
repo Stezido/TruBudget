@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -7,11 +8,11 @@ import { Ctx } from "./lib/ctx";
 import { isNonemptyString } from "./lib/validation";
 import * as Result from "./result";
 import { ServiceUser } from "./service/domain/organization/service_user";
-import { Permissions } from "./service/domain/permissions";
+import { filterPermissions, Permissions } from "./service/domain/permissions";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: "See the permissions for a given project.",
       tags: ["project"],
@@ -58,8 +59,14 @@ interface Service {
   ): Promise<Result.Type<Permissions>>;
 }
 
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+  };
+}
+
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/project.intent.listPermissions`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -84,18 +91,20 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
 
       try {
         const projectPermissions = await service.getProjectPermissions(ctx, user, projectId);
-
         if (Result.isErr(projectPermissions)) {
-          projectPermissions.message = `could not list project permissions: ${
-            projectPermissions.message
-            }`;
-          throw projectPermissions;
+          throw new VError(projectPermissions, "project.intent.listPermissions failed");
         }
+
+        // TODO use an exposedPermissions interface instead of a filter function
+        const filteredProjectPermissions = filterPermissions(projectPermissions, [
+          "project.close",
+          "project.archive",
+        ]);
 
         const code = 200;
         const body = {
           apiVersion: "1.0",
-          data: projectPermissions,
+          data: filteredProjectPermissions,
         };
         reply.status(code).send(body);
       } catch (err) {

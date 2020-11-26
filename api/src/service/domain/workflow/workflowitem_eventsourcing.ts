@@ -86,7 +86,7 @@ function sourceEvent(
     if (event.type !== "workflowitem_created") {
       return new VError(
         `event ${event.type} is not of type "workflowitem_created" but also ` +
-        "does not include a workflowitem ID",
+          "does not include a workflowitem ID",
       );
     }
 
@@ -131,39 +131,44 @@ export function newWorkflowitemFromEvent(
   event: BusinessEvent,
 ): Result.Type<Workflowitem.Workflowitem> {
   const eventModule = getEventModule(event);
+  if (Result.isErr(eventModule)) {
+    return eventModule;
+  }
 
   // Ensure that we never modify workflowitem or event in-place by passing copies. When
   // copying the workflowitem, its event log is omitted for performance reasons.
   const eventCopy = deepcopy(event);
   const workflowitemCopy = copyWorkflowitemExceptLog(workflowitem);
 
-  try {
-    // Apply the event to the copied workflowitem:
-    const mutation = eventModule.mutate(workflowitemCopy, eventCopy);
-    if (Result.isErr(mutation)) {
-      throw mutation;
-    }
-
-    // Validate the modified workflowitem:
-    const validation = Workflowitem.validate(workflowitemCopy);
-    if (Result.isErr(validation)) {
-      throw validation;
-    }
-
-    // Restore the event log:
-    workflowitemCopy.log = workflowitem.log;
-
-    // Return the modified (and validated) workflowitem:
-    return workflowitemCopy;
-  } catch (error) {
-    return new EventSourcingError({ ctx, event, target: workflowitem }, error);
+  // Apply the event to the copied workflowitem:
+  const mutationResult = eventModule.mutate(workflowitemCopy, eventCopy);
+  if (Result.isErr(mutationResult)) {
+    return new VError(
+      new EventSourcingError({ ctx, event, target: workflowitem }, mutationResult),
+      "mutation of workflowitem failed",
+    );
   }
+
+  // Validate the modified workflowitem:
+  const validationResult = Workflowitem.validate(workflowitemCopy);
+  if (Result.isErr(validationResult)) {
+    return new VError(
+      new EventSourcingError({ ctx, event, target: workflowitem }, validationResult),
+      "validation of workflowitem failed",
+    );
+  }
+
+  // Restore the event log:
+  workflowitemCopy.log = workflowitem.log;
+
+  // Return the modified (and validated) workflowitem:
+  return workflowitemCopy;
 }
 
 type EventModule = {
   mutate: (workflowitem: Workflowitem.Workflowitem, event: BusinessEvent) => Result.Type<void>;
 };
-function getEventModule(event: BusinessEvent): EventModule {
+function getEventModule(event: BusinessEvent): Result.Type<EventModule> {
   switch (event.type) {
     case "workflowitem_updated":
       return WorkflowitemUpdated;
@@ -181,7 +186,7 @@ function getEventModule(event: BusinessEvent): EventModule {
       return WorkflowitemPermissionRevoked;
 
     default:
-      throw new VError(`unknown workflowitem event ${event.type}`);
+      return new VError(`unknown workflowitem event ${event.type}`);
   }
 }
 

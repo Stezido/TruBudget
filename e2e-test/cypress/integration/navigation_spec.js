@@ -37,6 +37,13 @@ describe("Navigation", function() {
     cy.get("[data-test=side-navigation-nodes]").click();
     cy.location("pathname").should("eq", "/nodes");
   });
+  it("The 'Service-Status' button redirects to the service status overview", function() {
+    cy.get("[data-test=openSideNavbar]").click();
+    cy.get("[data-test=side-navigation]").should("be.visible");
+
+    cy.get("[data-test=side-navigation-service-status]").click();
+    cy.location("pathname").should("eq", "/status");
+  });
 
   it("Navigate via bredcrumbs", function() {
     let projectId;
@@ -65,78 +72,6 @@ describe("Navigation", function() {
         cy.get(`[data-test=breadcrumb-Projects]`).click();
         cy.location("pathname").should("eq", `/projects`);
         cy.get(`[data-test=breadcrumb-Projects]`).should("be.disabled");
-      });
-  });
-
-  it("Filter projects by display name", function() {
-    // Set a unique project name
-    const projectDisplayName = Math.floor(Math.random() * 10000000000);
-
-    // Create project which will then be displayed after filtering
-    cy.createProject(projectDisplayName, projectDisplayName, [])
-      .then(() => cy.visit(`/projects`))
-      .then(() => {
-        cy.get("[data-test=toggle-project-search]").click();
-        cy.get("[data-test=project-search-field]").should("be.visible");
-        cy.get("[data-test=project-search-field] input").type(projectDisplayName);
-        // Since project name is unique, there can only be one match
-        cy.get("[data-test*=project-card]").then(res => assert.equal(res.length, 1));
-
-        // Check the functionality of the clear button
-        cy.get("[data-test=clear-project-search]").click();
-        cy.get("[data-test=project-search-field]").should("not.be.visible");
-      });
-  });
-
-  it("Search bar is closed and reset when viewing project details", function() {
-    // Set a unique project name
-    const projectDisplayName = Math.floor(Math.random() * 10000000000);
-
-    // Create project which will then be displayed after filtering
-    cy.createProject(projectDisplayName, projectDisplayName, [])
-      .then(() => cy.visit(`/projects`))
-      .then(() => {
-        cy.get("[data-test=toggle-project-search]").click();
-        cy.get("[data-test=project-search-field]").should("be.visible");
-        cy.get("[data-test=project-search-field] input").type(projectDisplayName);
-        // Since project name is unique, there can only be one match
-        cy.get("[data-test*=project-card]").then(res => assert.equal(res.length, 1));
-
-        // Go to project
-        cy.get("[data-test*=project-view-button]")
-          .first()
-          .click();
-
-        cy.get("[data-test=project-search-field]").should("not.be.visible");
-        cy.get("[data-test=toggle-project-search]").should("be.disabled");
-
-        cy.visit("/projects");
-        // Search field should be empty
-        cy.get("[data-test=toggle-project-search]").click();
-        cy.get("[data-test=project-search-field] input").should("have.value", "");
-      });
-  });
-
-  it("Search bar is closed and reset when clicking on 'Main' breadcrumb", function() {
-    // Set a unique project name
-    const projectDisplayName = Math.floor(Math.random() * 10000000000);
-
-    // Create project which will then be displayed after filtering
-    cy.createProject(projectDisplayName, projectDisplayName, [])
-      .then(() => cy.visit(`/projects`))
-      .then(() => {
-        cy.get("[data-test=toggle-project-search]").click();
-        cy.get("[data-test=project-search-field]").should("be.visible");
-        cy.get("[data-test=project-search-field] input").type(projectDisplayName);
-        // Since project name is unique, there can only be one match
-        cy.get("[data-test*=project-card]").then(res => assert.equal(res.length, 1));
-
-        // Go to project
-        cy.get("[data-test=breadcrumb-Main]").click();
-
-        cy.get("[data-test=project-search-field]").should("not.be.visible");
-        cy.get("[data-test=toggle-project-search]").should("be.enabled");
-        // TODO: Test what happens when you click on a project
       });
   });
 

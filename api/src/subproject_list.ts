@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { getAllowedIntents } from "./authz";
 import Intent from "./authz/intents";
@@ -8,14 +9,16 @@ import { AuthenticatedRequest } from "./httpd/lib";
 import { Ctx } from "./lib/ctx";
 import { toUnixTimestampStr } from "./lib/datetime";
 import { isNonemptyString } from "./lib/validation";
+import * as Result from "./result";
 import { ServiceUser } from "./service/domain/organization/service_user";
 import * as Project from "./service/domain/workflow/project";
 import * as Subproject from "./service/domain/workflow/subproject";
 import { SubprojectTraceEvent } from "./service/domain/workflow/subproject_trace_event";
+import WorkflowitemType from "./service/domain/workflowitem_types/types";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description:
         "Retrieve all subprojects for a given project. Note that any " +
@@ -58,6 +61,8 @@ function mkSwaggerSchema(server: FastifyInstance) {
                           displayName: { type: "string", example: "school" },
                           description: { type: "string", example: "school should be built" },
                           assignee: { type: "string", example: "aSmith" },
+                          validator: { type: "string", example: "aSmith" },
+                          workflowitemType: { type: "string", example: "general" },
                           currency: { type: "string", example: "EUR" },
                           projectedBudgets: {
                             type: "array",
@@ -134,6 +139,8 @@ interface ExposedSubproject {
     displayName: string;
     description: string;
     assignee?: string;
+    validator?: string;
+    workflowitemType?: WorkflowitemType;
     currency: string;
     projectedBudgets: Array<{
       organization: string;
@@ -149,11 +156,18 @@ interface Service {
     ctx: Ctx,
     user: ServiceUser,
     projectId: Project.Id,
-  ): Promise<Subproject.Subproject[]>;
+  ): Promise<Result.Type<Subproject.Subproject[]>>;
+}
+
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+    subprojectId: string;
+  };
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(`${urlPrefix}/subproject.list`, mkSwaggerSchema(server), (request, reply) => {
+  server.get<Request>(`${urlPrefix}/subproject.list`, mkSwaggerSchema(server), (request, reply) => {
     const ctx: Ctx = { requestId: request.id, source: "http" };
 
     const user: ServiceUser = {
@@ -175,8 +189,11 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
 
     service
       .listSubprojects(ctx, user, projectId)
-      .then((subprojects: Subproject.Subproject[]) => {
-        return subprojects.map(subproject => {
+      .then((subprojectsResult) => {
+        if (Result.isErr(subprojectsResult)) {
+          throw new VError(subprojectsResult, "subproject.list failed");
+        }
+        const subprojects: ExposedSubproject[] = subprojectsResult.map((subproject) => {
           return {
             log: subproject.log,
             allowedIntents: getAllowedIntents(
@@ -190,14 +207,14 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
               displayName: subproject.displayName,
               description: subproject.description,
               assignee: subproject.assignee,
+              validator: subproject.validator,
+              workflowitemType: subproject.workflowitemType,
               currency: subproject.currency,
               projectedBudgets: subproject.projectedBudgets,
               additionalData: subproject.additionalData,
             },
           };
         });
-      })
-      .then((subprojects: ExposedSubproject[]) => {
         const code = 200;
         const body = {
           apiVersion: "1.0",
@@ -207,7 +224,7 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
         };
         reply.status(code).send(body);
       })
-      .catch(err => {
+      .catch((err) => {
         const { code, body } = toHttpError(err);
         reply.status(code).send(body);
       });

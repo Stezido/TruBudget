@@ -1,19 +1,25 @@
 import { fromJS } from "immutable";
-
+import _isEmpty from "lodash/isEmpty";
 import strings from "../../localizeStrings";
-import { LOGOUT } from "../Login/actions";
+import { CONFIRMATION_CANCELLED, CONFIRMATION_CONFIRMED } from "../Confirmation/actions";
 import { HIDE_HISTORY } from "../Notifications/actions";
+import { FETCH_PROJECT_PERMISSIONS_SUCCESS } from "../Overview/actions";
 import {
+  ADD_TEMPORARY_SUBPROJECT_PERMISSION,
   CREATE_SUBPROJECT_SUCCESS,
+  DISABLE_LIVE_UPDATES_PROJECT,
+  ENABLE_LIVE_UPDATES_PROJECT,
   FETCH_ALL_PROJECT_DETAILS_SUCCESS,
   FETCH_NEXT_PROJECT_HISTORY_PAGE,
   FETCH_NEXT_PROJECT_HISTORY_PAGE_SUCCESS,
-  SET_TOTAL_PROJECT_HISTORY_ITEM_COUNT,
   FETCH_SUBPROJECT_PERMISSIONS_SUCCESS,
   HIDE_PROJECT_ASSIGNEES,
   HIDE_SUBPROJECT_ADDITIONAL_DATA,
   HIDE_SUBPROJECT_DIALOG,
   HIDE_SUBPROJECT_PERMISSIONS,
+  OPEN_HISTORY,
+  REMOVE_TEMPORARY_SUBPROJECT_PERMISSION,
+  SET_TOTAL_PROJECT_HISTORY_ITEM_COUNT,
   SHOW_PROJECT_ASSIGNEES,
   SHOW_SUBPROJECT_ADDITIONAL_DATA,
   SHOW_SUBPROJECT_CREATE,
@@ -21,11 +27,22 @@ import {
   SHOW_SUBPROJECT_PERMISSIONS,
   SUBPROJECT_COMMENT,
   SUBPROJECT_CURRENCY,
+  SUBPROJECT_VALIDATOR,
+  SUBPROJECT_WORKFLOWITEMTYPE,
   SUBPROJECT_DELETED_PROJECTED_BUDGET,
   SUBPROJECT_NAME,
-  SUBPROJECT_PROJECTED_BUDGETS,
-  OPEN_HISTORY
+  ADD_SUBPROJECT_PROJECTED_BUDGET,
+  EDIT_SUBPROJECT_PROJECTED_BUDGET_AMOUNT,
+  SUBPROJECT_SEARCH_BAR_DISPLAYED,
+  SUBPROJECT_SEARCH_TERM,
+  SUBPROJECT_STORE_FILTERED_PROJECTS,
+  SUBPROJECT_STORE_HIGHLIGHTING_REGEX,
+  SUBPROJECT_STORE_SEARCH_TERMS_AS_ARRAY,
+  FETCH_FIRST_PROJECT_HISTORY_PAGE,
+  FETCH_FIRST_PROJECT_HISTORY_PAGE_SUCCESS
 } from "./actions";
+import { convertToURLQuery } from "../../helper";
+import { ENABLE_ALL_LIVE_UPDATES, DISABLE_ALL_LIVE_UPDATES } from "../Navbar/actions";
 
 const historyPageSize = 50;
 
@@ -39,13 +56,18 @@ const defaultState = fromJS({
   projectProjectedBudgets: [],
   projectTS: 0,
   subProjects: [],
+  filteredSubProjects: [],
   subprojectToAdd: {
     id: "",
     displayName: "",
     description: "",
     currency: "",
-    projectedBudgets: []
+    projectedBudgets: [],
+    deletedProjectedBudgets: [],
+    validator: "",
+    workflowitemType: "any"
   },
+  idsPermissionsUnassigned: [],
   creationDialogShown: false,
   editDialogShown: false,
   showHistory: false,
@@ -62,16 +84,27 @@ const defaultState = fromJS({
   showSubProjectPermissions: false,
   isSubProjectAdditionalDataShown: false,
   idForInfo: "",
-  permissions: [],
+  permissions: { project: {}, subproject: {} },
+  temporaryPermissions: {},
   idForPermissions: "",
+  displayNameForPermissions: "",
   showProjectAssignees: false,
   projectAssignee: "",
-  dialogTitle: strings.subproject.subproject_add_title
+  dialogTitle: strings.subproject.subproject_add_title,
+  searchTerm: "",
+  searchTerms: [],
+  searchBarDisplayed: true,
+  highlightingRegex: "",
+  isLiveUpdatesProjectEnabled: true
 });
 
 export default function detailviewReducer(state = defaultState, action) {
   switch (action.type) {
     case FETCH_ALL_PROJECT_DETAILS_SUCCESS:
+      // While searching, stop updating the subproject list from new fetched subprojects
+      if (state.get("searchTerms").size === 0) {
+        state = state.set("filteredSubProjects", action.subprojects);
+      }
       return state.merge({
         id: action.project.data.id,
         projectName: action.project.data.displayName,
@@ -89,9 +122,12 @@ export default function detailviewReducer(state = defaultState, action) {
 
     case SHOW_SUBPROJECT_PERMISSIONS:
       return state.merge({
-        permissions: fromJS({}),
+        permissions: defaultState.get("permissions"),
+        temporaryPermissions: defaultState.get("temporaryPermissions"),
         idForPermissions: action.id,
-        showSubProjectPermissions: true
+        displayNameForPermissions: action.displayName,
+        showSubProjectPermissions: true,
+        idsPermissionsUnassigned: state.get("idsPermissionsUnassigned").filter(id => id !== action.id)
       });
     case SHOW_SUBPROJECT_ADDITIONAL_DATA:
       return state.merge({
@@ -99,9 +135,19 @@ export default function detailviewReducer(state = defaultState, action) {
         isSubProjectAdditionalDataShown: true
       });
     case FETCH_SUBPROJECT_PERMISSIONS_SUCCESS:
-      return state.set("permissions", fromJS(action.permissions));
+      return state
+        .setIn(["permissions", "subproject"], fromJS(action.permissions))
+        .set("temporaryPermissions", fromJS(action.permissions));
+    case FETCH_PROJECT_PERMISSIONS_SUCCESS:
+      return state.setIn(["permissions", "project"], fromJS(action.permissions));
     case HIDE_SUBPROJECT_PERMISSIONS:
-      return state.set("showSubProjectPermissions", false);
+    case CONFIRMATION_CONFIRMED:
+      return state.merge({
+        idForPermissions: defaultState.get("idForPermissions"),
+        displayNameForPermissions: defaultState.get("displayNameForPermissions"),
+        showSubProjectPermissions: defaultState.get("showSubProjectPermissions"),
+        permissions: defaultState.getIn(["permissions"])
+      });
     case SHOW_SUBPROJECT_CREATE:
       return state.merge({ creationDialogShown: true, dialogTitle: strings.subproject.subproject_add_title });
     case SUBPROJECT_NAME:
@@ -110,14 +156,42 @@ export default function detailviewReducer(state = defaultState, action) {
       return state.setIn(["subprojectToAdd", "description"], action.description);
     case SUBPROJECT_CURRENCY:
       return state.setIn(["subprojectToAdd", "currency"], action.currency);
-    case SUBPROJECT_PROJECTED_BUDGETS:
-      return state.setIn(["subprojectToAdd", "projectedBudgets"], fromJS(action.projectedBudgets));
+    case SUBPROJECT_VALIDATOR:
+      return state.setIn(["subprojectToAdd", "validator"], action.validator);
+    case SUBPROJECT_WORKFLOWITEMTYPE:
+      return state.setIn(["subprojectToAdd", "workflowitemType"], action.workflowitemType);
+    case ADD_SUBPROJECT_PROJECTED_BUDGET:
+      return state.merge({
+        subprojectToAdd: state.get("subprojectToAdd").merge({
+          projectedBudgets: [...state.getIn(["subprojectToAdd", "projectedBudgets"]).toJS(), action.projectedBudget]
+        })
+      });
+    case EDIT_SUBPROJECT_PROJECTED_BUDGET_AMOUNT:
+      let newStateWithEditedBudget;
+      state
+        .getIn(["subprojectToAdd", "projectedBudgets"])
+        .toJS()
+        .forEach((b, index) => {
+          if (
+            b.organization === action.projectedBudget.organization &&
+            b.currencyCode === action.projectedBudget.currencyCode
+          ) {
+            newStateWithEditedBudget = state.setIn(
+              ["subprojectToAdd", "projectedBudgets", index, "value"],
+              action.budgetAmountEdit
+            );
+          }
+        });
+      return newStateWithEditedBudget;
     case SUBPROJECT_DELETED_PROJECTED_BUDGET:
       const projectedBudgets = state.getIn(["subprojectToAdd", "projectedBudgets"]).toJS();
       const projectedBudgetsToDelete = action.projectedBudgets;
       const newState = state.merge({
         subprojectToAdd: state.get("subprojectToAdd").merge({
-          deletedProjectedBudgets: projectedBudgetsToDelete,
+          deletedProjectedBudgets: [
+            ...state.getIn(["subprojectToAdd", "deletedProjectedBudgets"]),
+            ...projectedBudgetsToDelete
+          ],
           projectedBudgets: projectedBudgets.filter(
             b =>
               projectedBudgetsToDelete.find(
@@ -128,13 +202,18 @@ export default function detailviewReducer(state = defaultState, action) {
       });
       return newState;
     case CREATE_SUBPROJECT_SUCCESS:
-      return state.set("subprojectToAdd", defaultState.getIn(["subprojectToAdd"]));
+      return state.merge({
+        highlightingRegex: defaultState.get("highlightingRegex"),
+        subprojectToAdd: defaultState.get("subprojectToAdd"),
+        idsPermissionsUnassigned: state.get("idsPermissionsUnassigned").concat(fromJS(action.subprojectId))
+      });
     case SHOW_PROJECT_ASSIGNEES:
       return state.set("showProjectAssignees", true);
     case HIDE_PROJECT_ASSIGNEES:
       return state.set("showProjectAssignees", false);
     case HIDE_SUBPROJECT_ADDITIONAL_DATA:
       return state.set("isSubProjectAdditionalDataShown", false);
+    case FETCH_FIRST_PROJECT_HISTORY_PAGE:
     case FETCH_NEXT_PROJECT_HISTORY_PAGE:
       return state.set("isHistoryLoading", true);
     case SET_TOTAL_PROJECT_HISTORY_ITEM_COUNT:
@@ -142,10 +221,15 @@ export default function detailviewReducer(state = defaultState, action) {
         totalHistoryItemCount: action.totalHistoryItemsCount,
         lastHistoryPage: action.lastHistoryPage
       });
-
     case FETCH_NEXT_PROJECT_HISTORY_PAGE_SUCCESS:
       return state.merge({
         historyItems: state.get("historyItems").concat(fromJS(action.events).reverse()),
+        currentHistoryPage: action.currentHistoryPage,
+        isHistoryLoading: false
+      });
+    case FETCH_FIRST_PROJECT_HISTORY_PAGE_SUCCESS:
+      return state.merge({
+        historyItems: fromJS(action.events).reverse(),
         currentHistoryPage: action.currentHistoryPage,
         isHistoryLoading: false
       });
@@ -169,6 +253,7 @@ export default function detailviewReducer(state = defaultState, action) {
             .set("description", action.description)
             .set("currency", action.currency)
             .set("projectedBudgets", fromJS(action.projectedBudgets))
+            .set("deletedProjectedBudgets", fromJS([]))
         )
         .merge({
           editDialogShown: true,
@@ -182,8 +267,42 @@ export default function detailviewReducer(state = defaultState, action) {
         subprojectToAdd: defaultState.getIn(["subprojectToAdd"])
       });
     }
-    case LOGOUT:
-      return defaultState;
+    case ADD_TEMPORARY_SUBPROJECT_PERMISSION:
+      return state.updateIn(["temporaryPermissions", action.permission], users => users.push(action.userId));
+    case REMOVE_TEMPORARY_SUBPROJECT_PERMISSION:
+      return state.updateIn(["temporaryPermissions", action.permission], users =>
+        users.filter(user => user !== action.userId)
+      );
+    case CONFIRMATION_CANCELLED:
+      return state.set(
+        "temporaryPermissions",
+        !_isEmpty(action.permissions) && !_isEmpty(action.permissions.subproject)
+          ? fromJS(action.permissions.subproject)
+          : defaultState.get("temporaryPermissions")
+      );
+
+    case SUBPROJECT_SEARCH_TERM:
+      const querySearchTerm = convertToURLQuery(action.searchTerm);
+      window.history.replaceState("", "Title", "?" + querySearchTerm);
+      return state.set("searchTerm", action.searchTerm);
+    case SUBPROJECT_SEARCH_BAR_DISPLAYED:
+      return state.merge({
+        searchTerms: defaultState.get("searchTerms"),
+        highlightingRegex: defaultState.get("highlightingRegex"),
+        searchBarDisplayed: action.searchBarDisplayed
+      });
+    case SUBPROJECT_STORE_FILTERED_PROJECTS:
+      return state.set("filteredSubProjects", fromJS(action.filteredSubProjects));
+    case SUBPROJECT_STORE_HIGHLIGHTING_REGEX:
+      return state.set("highlightingRegex", fromJS(action.highlightingRegex));
+    case SUBPROJECT_STORE_SEARCH_TERMS_AS_ARRAY:
+      return state.set("searchTerms", fromJS(action.searchTerms));
+    case DISABLE_ALL_LIVE_UPDATES:
+    case DISABLE_LIVE_UPDATES_PROJECT:
+      return state.set("isLiveUpdatesProjectEnabled", false);
+    case ENABLE_ALL_LIVE_UPDATES:
+    case ENABLE_LIVE_UPDATES_PROJECT:
+      return state.set("isLiveUpdatesProjectEnabled", true);
     default:
       return state;
   }

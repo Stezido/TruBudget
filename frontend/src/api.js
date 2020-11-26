@@ -1,4 +1,6 @@
 import axios from "axios";
+import _isEmpty from "lodash/isEmpty";
+import strings from "./localizeStrings";
 
 const devMode = process.env.NODE_ENV === "development";
 const API_VERSION = "1.0";
@@ -26,6 +28,20 @@ class Api {
       },
       ...instance.defaults.transformRequest
     ];
+
+    instance.interceptors.request.use(request => {
+      if (request.url.includes("/version")) {
+        this.timeStamp = performance.now();
+      }
+      return request;
+    });
+
+    instance.interceptors.response.use(response => {
+      if (response.config.url.includes("/version")) {
+        response.data.ping = performance.now() - this.timeStamp;
+      }
+      return response;
+    });
   }
 
   setAuthorizationHeader = token => {
@@ -47,7 +63,19 @@ class Api {
         password
       }
     });
+
+  disableUser = userId =>
+    instance.post(`/global.disableUser`, {
+      userId
+    });
+
+  enableUser = userId =>
+    instance.post(`/global.enableUser`, {
+      userId
+    });
+
   fetchVersions = () => instance.get(`/version`);
+
   createUser = (displayName, organization, username, password) =>
     instance.post(`/global.createUser`, {
       user: {
@@ -57,10 +85,12 @@ class Api {
         password
       }
     });
+
   grantAllUserPermissions = userId =>
     instance.post(`global.grantAllPermissions`, {
       identity: userId
     });
+
   grantGlobalPermission = (identity, intent) => instance.post(`global.grantPermission`, { identity, intent });
 
   revokeGlobalPermission = (identity, intent) => instance.post(`global.revokePermission`, { identity, intent });
@@ -73,6 +103,8 @@ class Api {
       userId,
       newPassword
     });
+
+  listUserAssignments = userId => instance.get(removeEmptyQueryParams(`/global.listAssignments?userId=${userId}`));
 
   createGroup = (groupId, displayName, users) =>
     instance.post(`/global.createGroup`, {
@@ -104,7 +136,7 @@ class Api {
       address
     });
   listProjects = () => instance.get(`/project.list`);
-  listSubprojects = projectId => instance.get(`/subproject.list?projectId=${projectId}`);
+  listSubprojects = projectId => instance.get(removeEmptyQueryParams(`/subproject.list?projectId=${projectId}`));
 
   createProject = (displayName, description, thumbnail, projectedBudgets, tags) =>
     instance.post(`/global.createProject`, {
@@ -123,11 +155,21 @@ class Api {
       ...changes
     });
 
-  viewProjectDetails = projectId => instance.get(`/project.viewDetails?projectId=${projectId}`);
-  viewProjectHistory = (projectId, offset, limit) =>
-    instance.get(`/project.viewHistory.v2?projectId=${projectId}&offset=${offset}&limit=${limit}`);
+  viewProjectDetails = projectId => instance.get(removeEmptyQueryParams(`/project.viewDetails?projectId=${projectId}`));
+  viewProjectHistory = (projectId, offset, limit, filter) => {
+    let url = removeEmptyQueryParams(`/project.viewHistory.v2?projectId=${projectId}&offset=${offset}&limit=${limit}`);
 
-  listProjectIntents = projectId => instance.get(`/project.intent.listPermissions?projectId=${projectId}`);
+    // filter: startAt|endAt|publisher|eventType
+    for (const key in filter) {
+      if (!_isEmpty(filter[key])) {
+        url = url + `&${key}=${filter[key]}`;
+      }
+    }
+    return instance.get(url);
+  };
+
+  listProjectIntents = projectId =>
+    instance.get(removeEmptyQueryParams(`/project.intent.listPermissions?projectId=${projectId}`));
 
   grantProjectPermissions = (projectId, intent, identity) =>
     instance.post(`/project.intent.grantPermission`, {
@@ -143,16 +185,19 @@ class Api {
       identity
     });
 
-  createSubProject = (projectId, name, description, currency, projectedBudgets) =>
-    instance.post(`/project.createSubproject`, {
+  createSubProject = (projectId, name, description, currency, validator, workflowitemType, projectedBudgets) => {
+    return instance.post(`/project.createSubproject`, {
       projectId,
       subproject: {
         displayName: name,
         description,
         currency,
+        validator: _isEmpty(validator) ? undefined : validator,
+        workflowitemType: workflowitemType === "any" ? undefined : workflowitemType,
         projectedBudgets
       }
     });
+  };
 
   editSubProject = (projectId, subprojectId, changes) =>
     instance.post(`/subproject.update`, {
@@ -162,17 +207,33 @@ class Api {
     });
 
   viewSubProjectDetails = (projectId, subprojectId) =>
-    instance.get(`/subproject.viewDetails?projectId=${projectId}&subprojectId=${subprojectId}`);
+    instance.get(removeEmptyQueryParams(`/subproject.viewDetails?projectId=${projectId}&subprojectId=${subprojectId}`));
 
-  viewSubProjectHistory = (projectId, subprojectId, offset, limit) =>
-    instance.get(
+  viewSubProjectHistory = (projectId, subprojectId, offset, limit, filter) => {
+    let url = removeEmptyQueryParams(
       `/subproject.viewHistory.v2?projectId=${projectId}&subprojectId=${subprojectId}&offset=${offset}&limit=${limit}`
     );
+    // filter: startAt|endAt|publisher|eventType
+    for (const key in filter) {
+      if (!_isEmpty(filter[key])) {
+        url = url + `&${key}=${filter[key]}`;
+      }
+    }
+    return instance.get(url);
+  };
 
-  viewWorkflowitemHistory = (projectId, subprojectId, workflowitemId, offset, limit) =>
-    instance.get(
+  viewWorkflowitemHistory = (projectId, subprojectId, workflowitemId, offset, limit, filter) => {
+    let url = removeEmptyQueryParams(
       `/workflowitem.viewHistory?projectId=${projectId}&subprojectId=${subprojectId}&workflowitemId=${workflowitemId}&offset=${offset}&limit=${limit}`
     );
+    // filter: startAt|endAt|publisher|eventType
+    for (const key in filter) {
+      if (!_isEmpty(filter[key])) {
+        url = url + `&${key}=${filter[key]}`;
+      }
+    }
+    return instance.get(url);
+  };
 
   updateProjectBudgetProjected = (projectId, organization, currencyCode, value) =>
     instance.post(`/project.budget.updateProjected`, {
@@ -208,7 +269,6 @@ class Api {
 
   createWorkflowItem = payload => {
     const { currency, amount, exchangeRate, ...minimalPayload } = payload;
-
     const payloadToSend =
       payload.amountType === "N/A"
         ? minimalPayload
@@ -218,14 +278,15 @@ class Api {
             amount,
             exchangeRate: exchangeRate.toString()
           };
-
     return instance.post(`/subproject.createWorkflowitem`, {
       ...payloadToSend
     });
   };
 
   listSubProjectPermissions = (projectId, subprojectId) =>
-    instance.get(`/subproject.intent.listPermissions?projectId=${projectId}&subprojectId=${subprojectId}`);
+    instance.get(
+      removeEmptyQueryParams(`/subproject.intent.listPermissions?projectId=${projectId}&subprojectId=${subprojectId}`)
+    );
 
   grantSubProjectPermissions = (projectId, subprojectId, intent, identity) =>
     instance.post(`/subproject.intent.grantPermission`, {
@@ -255,7 +316,6 @@ class Api {
             amount,
             exchangeRate: exchangeRate ? exchangeRate.toString() : undefined
           };
-
     return instance.post(`/workflowitem.update`, {
       projectId,
       subprojectId,
@@ -271,7 +331,9 @@ class Api {
 
   listWorkflowItemPermissions = (projectId, subprojectId, workflowitemId) =>
     instance.get(
-      `/workflowitem.intent.listPermissions?projectId=${projectId}&subprojectId=${subprojectId}&workflowitemId=${workflowitemId}`
+      removeEmptyQueryParams(
+        `/workflowitem.intent.listPermissions?projectId=${projectId}&subprojectId=${subprojectId}&workflowitemId=${workflowitemId}`
+      )
     );
 
   grantWorkflowItemPermissions = (projectId, subprojectId, workflowitemId, intent, identity) =>
@@ -332,7 +394,8 @@ class Api {
     });
 
   fetchNotifications = (offset, limit) => {
-    return instance.get(`/notification.list?offset=${offset}&limit=${limit}`);
+    let url = removeEmptyQueryParams(`/notification.list?offset=${offset}&limit=${limit}`);
+    return instance.get(url);
   };
 
   fetchNotificationCounts = () => {
@@ -360,9 +423,101 @@ class Api {
     return response;
   };
   export = () => {
-    const path = devMode ? "http://localhost:8888/test" : "/export/xlsx/";
+    const path = devMode
+      ? `http://localhost:8888/test/api/export/xlsx/download?lang=${strings.getLanguage()}`
+      : `/export/xlsx/download?lang=${strings.getLanguage()}`;
+
     return instance.get(path, { responseType: "blob" });
   };
+  fetchExportServiceVersion = () => {
+    const path = devMode ? "http://localhost:8888/version" : "/export/xlsx/version";
+    return instance.get(path);
+  };
+  checkExportService = () => {
+    const path = devMode ? "http://localhost:8888/readiness" : "/export/xlsx/readiness";
+    return instance.get(path);
+  };
+  checkEmailService = () => {
+    const path = devMode ? "http://localhost:8890/readiness" : "/email/readiness";
+    return instance.get(path);
+  };
+  fetchEmailServiceVersion = () => {
+    const path = devMode ? "http://localhost:8890/version" : "/email/version";
+    return instance.get(path);
+  };
+  insertEmailAddress = (id, emailAddress) => {
+    const data = { user: { id, emailAddress } };
+    const path = devMode ? "http://localhost:8890/user.insert" : "/email/user.insert";
+    return instance.post(path, data);
+  };
+  updateEmailAddress = (id, emailAddress) => {
+    const data = { user: { id, emailAddress } };
+    const path = devMode ? "http://localhost:8890/user.update" : "/email/user.update";
+    return instance.post(path, data);
+  };
+  deleteEmailAddress = (id, emailAddress) => {
+    const data = { user: { id, emailAddress } };
+    const path = devMode ? "http://localhost:8890/user.delete" : "/email/user.delete";
+    return instance.post(path, data);
+  };
+  getEmailAddress = id => {
+    const path = devMode
+      ? `http://localhost:8890/user.getEmailAddress?id=${id}`
+      : `/email/user.getEmailAddress?id=${id}`;
+    return instance.get(path);
+  };
+
+  downloadDocument = (projectId, subprojectId, workflowitemId, documentId) =>
+    instance
+      .get(
+        removeEmptyQueryParams(
+          `/workflowitem.downloadDocument?projectId=${projectId}&subprojectId=${subprojectId}&workflowitemId=${workflowitemId}&documentId=${documentId}`
+        ),
+        { responseType: "blob" }
+      )
+      .then(response => {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        const dispositionHeader = response.headers["content-disposition"];
+        let filename;
+
+        if (hasAttachment(response)) {
+          // Regex for extracting filename from content-disposition header
+          // Content-disposition header e.g.: `attachment; filename="test.pdf"`
+          const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+          const matches = filenameRegex.exec(dispositionHeader);
+          if (matches != null && matches[1]) {
+            // Remove apostrophe
+            filename = matches[1].replace(/['"]/g, "");
+          }
+        }
+
+        link.download = filename;
+        document.body.appendChild(link);
+
+        link.click();
+        link.remove();
+        return Promise.resolve({ data: {} });
+      });
 }
+
+const hasAttachment = response => {
+  const dispositionHeader = response.headers["content-disposition"];
+  return dispositionHeader && dispositionHeader.indexOf("attachment") !== -1;
+};
+
+/**
+ *
+ * @param url url that needs to be checked for empty parameters
+ * @returns the url without empty or undefined parameters
+
+ */
+const removeEmptyQueryParams = url => {
+  return url
+    .replace(/[^=&]+=(&|$)/g, "") // removes a parameter if the '=' is followed by a '&' or if it's the end of the line
+    .replace(/[^=&]+=(undefined|$)/g, "") // removes a parameter if the '=' is followed by 'undefined'
+    .replace(/&$/, ""); // removes any leftover '$'
+};
 
 export default Api;

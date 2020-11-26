@@ -1,35 +1,91 @@
-import React from "react";
-
 import Divider from "@material-ui/core/Divider";
-
-import { compareWorkflowItems } from "./compareWorkflowItems";
-import CreationDialog from "../Common/CreationDialog";
-import strings from "../../localizeStrings";
-import WorkflowDialogAmount from "./WorkflowDialogAmount";
-import DocumentUpload from "../Documents/DocumentUpload";
-import Identifier from "../Common/Identifier";
-import { compareObjects, fromAmountString } from "../../helper";
+import { withStyles } from "@material-ui/core/styles";
+import MenuItem from "@material-ui/core/MenuItem";
+import Tooltip from "@material-ui/core/Tooltip";
+import InfoOutlinedIcon from "@material-ui/icons/InfoOutlined";
 import _isEmpty from "lodash/isEmpty";
+import React, { useEffect } from "react";
+import { compareObjects, fromAmountString, shortenedDisplayName } from "../../helper";
+import strings from "../../localizeStrings";
+import CreationDialog from "../Common/CreationDialog";
+import DatePicker from "../Common/DatePicker";
+import Identifier from "../Common/Identifier";
+import Dropdown from "../Common/NewDropdown";
+import AssigneeSelection from "../Common/AssigneeSelection";
+import DocumentUpload from "../Documents/DocumentUpload";
+import { compareWorkflowItems } from "./compareWorkflowItems";
+import WorkflowDialogAmount from "./WorkflowDialogAmount";
+import { types, typesDescription } from "./workflowitemTypes";
 
 const styles = {
   container: {
     width: "100%"
+  },
+  dropdown: {
+    minWidth: 140,
+    height: 50,
+    marginTop: 20
+  },
+  inputContainer: {
+    width: "100%",
+    display: "flex"
+  },
+  infoIcon: {
+    fontSize: 20,
+    marginTop: 35,
+    padding: 8
+  },
+  subContainer: {
+    display: "flex",
+    justifyContent: "space-around"
+  },
+  assigneeContainer: {
+    margin: "25,30,0,0",
+    marginTop: 35,
+    marginLeft: 25,
+    justifyContent: "flex-start"
   }
 };
+
 const handleCreate = props => {
-  const { createWorkflowItem, onDialogCancel, workflowToAdd, storeSnackbarMessage } = props;
-  const { displayName, amount, amountType, currency, description, status, documents, exchangeRate } = workflowToAdd;
-  createWorkflowItem(
+  const {
+    createWorkflowItem,
+    onDialogCancel,
+    workflowToAdd,
+    storeSnackbarMessage,
+    projectDisplayName,
+    subprojectDisplayName
+  } = props;
+
+  const {
     displayName,
-    fromAmountString(amount).toString(),
-    exchangeRate,
+    amount,
     amountType,
     currency,
     description,
     status,
-    documents
+    documents,
+    exchangeRate,
+    dueDate,
+    workflowitemType
+  } = workflowToAdd;
+
+  createWorkflowItem(
+    displayName,
+    fromAmountString(amount).toString(),
+    fromAmountString(exchangeRate).toString(),
+    amountType,
+    currency,
+    description,
+    status,
+    documents,
+    dueDate,
+    workflowitemType,
+    projectDisplayName,
+    subprojectDisplayName
   );
-  storeSnackbarMessage(strings.common.created + " " + strings.common.workflowItem + " " + displayName);
+
+  storeSnackbarMessage(strings.formatString(strings.snackbar.permissions_warning, shortenedDisplayName(displayName)));
   onDialogCancel();
 };
 
@@ -55,16 +111,95 @@ const handleEdit = props => {
     if (changes.amount) {
       changes.amount = fromAmountString(changes.amount).toString();
     }
+    if (changes.exchangeRate) {
+      changes.exchangeRate = fromAmountString(changes.exchangeRate).toString();
+    }
+
+    delete changes.assignee;
     editWorkflowItem(projectId, subprojectId, workflowToAdd.id, changes);
   }
-  storeSnackbarMessage(strings.common.edited + " " + strings.common.workflowItem + " " + workflowToAdd.displayName);
+  storeSnackbarMessage(
+    strings.formatString(
+      strings.snackbar.update_succeed_message,
+      shortenedDisplayName(originalWorkflowItem.displayName)
+    )
+  );
   onDialogCancel();
 };
 
+const getDropdownMenuItems = types => {
+  return types.map((type, index) => {
+    return (
+      <MenuItem key={index} value={type}>
+        {type}
+      </MenuItem>
+    );
+  });
+};
+
+const getWorkflowitemTypeInfo = type => {
+  switch (type) {
+    case "general":
+      return typesDescription.general;
+    case "restricted":
+      return typesDescription.restricted;
+    default:
+      return typesDescription.general;
+  }
+};
+
 const Content = props => {
+  const { workflowitemType } = props.workflowToAdd;
+  const {
+    classes,
+    selectedAssignee,
+    users,
+    creationDialogShown,
+    storeWorkflowitemType,
+    storeWorkflowAssignee,
+    hasSubprojectValidator,
+    subprojectValidator,
+    hasFixedWorkflowitemType,
+    fixedWorkflowitemType
+  } = props;
   return (
-    <div style={styles.container}>
-      <div style={styles.container}>
+    <div className={classes.container} data-test={"workflow-dialog-content"}>
+      <div className={classes.container}>
+        {creationDialogShown ? (
+          <div className={classes.subContainer}>
+            <div className={classes.inputContainer}>
+              <Dropdown
+                disabled={hasFixedWorkflowitemType}
+                style={styles.dropdown}
+                floatingLabel={strings.workflow.workflowitem_type}
+                value={hasFixedWorkflowitemType ? fixedWorkflowitemType : workflowitemType}
+                onChange={value => storeWorkflowitemType(value)}
+                id="types"
+              >
+                {getDropdownMenuItems(types)}
+              </Dropdown>
+              <Tooltip title={getWorkflowitemTypeInfo(workflowitemType)} placement="right">
+                <InfoOutlinedIcon className={classes.infoIcon} />
+              </Tooltip>
+            </div>
+            <div className={classes.inputContainer}>
+              <div className={classes.assigneeContainer}>
+                <AssigneeSelection
+                  disabled={hasSubprojectValidator}
+                  assigneeId={hasSubprojectValidator ? subprojectValidator : selectedAssignee}
+                  users={users}
+                  title={"title"}
+                  assign={(assigneeId, assigneeDisplayName) => {
+                    storeWorkflowAssignee(assigneeId);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div />
+        )}
+
         <Identifier
           nameLabel={strings.workflow.workflow_title}
           nameHintText={strings.workflow.workflow_title_description}
@@ -74,6 +209,18 @@ const Content = props => {
           commentHintText={strings.common.comment_description}
           comment={props.workflowToAdd.description}
           commentOnChange={props.storeWorkflowComment}
+        />
+        <DatePicker
+          id="due-date"
+          label={strings.common.dueDate}
+          datetime={props.workflowToAdd.dueDate}
+          onChange={e => {
+            // Since native datepicker has undefined as default value, it has to be set as empty string to reset due-date in API
+            e.target.value === undefined ? props.storeWorkflowDueDate("") : props.storeWorkflowDueDate(e.target.value);
+          }}
+          onDelete={() => {
+            props.storeWorkflowDueDate("");
+          }}
         />
       </div>
       <Divider />
@@ -93,7 +240,40 @@ const Content = props => {
   );
 };
 const WorkflowDialog = props => {
-  const { workflowItems, workflowToAdd, editDialogShown, creationDialogShown, storeWorkflowDocument } = props;
+  const {
+    workflowItems,
+    workflowToAdd,
+    editDialogShown,
+    creationDialogShown,
+    storeWorkflowDocument,
+    currentUser,
+    storeWorkflowAssignee,
+    hasSubprojectValidator,
+    subprojectValidator,
+    storeWorkflowitemType,
+    hasFixedWorkflowitemType,
+    fixedWorkflowitemType,
+    workflowitemType
+  } = props;
+
+  useEffect(() => {
+    if (creationDialogShown) {
+      storeWorkflowAssignee(hasSubprojectValidator ? subprojectValidator : currentUser);
+      storeWorkflowitemType(hasFixedWorkflowitemType ? fixedWorkflowitemType : props.workflowToAdd.workflowitemType);
+    }
+  }, [
+    storeWorkflowAssignee,
+    currentUser,
+    creationDialogShown,
+    hasSubprojectValidator,
+    subprojectValidator,
+    storeWorkflowitemType,
+    hasFixedWorkflowitemType,
+    fixedWorkflowitemType,
+    workflowitemType,
+    props.workflowToAdd.workflowitemType
+  ]);
+
   const specifcProps = editDialogShown
     ? {
         handleSubmit: handleEdit,
@@ -103,8 +283,10 @@ const WorkflowDialog = props => {
         handleSubmit: handleCreate,
         dialogShown: creationDialogShown
       };
-  const { displayName, amountType, amount, exchangeRate } = workflowToAdd;
+  const { displayName, amountType, amount } = workflowToAdd;
+  const exchangeRate = fromAmountString(workflowToAdd.exchangeRate);
   const changes = compareObjects(workflowItems, workflowToAdd);
+  delete changes.assignee;
   const steps = [
     {
       title: strings.workflow.workflow_name,
@@ -113,7 +295,7 @@ const WorkflowDialog = props => {
         (amountType !== "N/A" && amount === "") ||
         (amountType !== "N/A" && (!Number.isFinite(exchangeRate) || exchangeRate === 0)),
       content: (
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div className={{ display: "flex", justifyContent: "space-between" }}>
           <Content {...props} />
         </div>
       )
@@ -130,6 +312,7 @@ const WorkflowDialog = props => {
           : _isEmpty(changes)
     }
   ];
+  const { classes, ...propsWithoutClasses } = props;
   return (
     <CreationDialog
       title={props.dialogTitle}
@@ -137,9 +320,9 @@ const WorkflowDialog = props => {
       steps={steps}
       numberOfSteps={steps.length}
       {...specifcProps}
-      {...props}
+      {...propsWithoutClasses}
     />
   );
 };
 
-export default WorkflowDialog;
+export default withStyles(styles)(WorkflowDialog);

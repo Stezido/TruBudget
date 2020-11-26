@@ -14,6 +14,9 @@ export const TAB_INDEX = "TAB_INDEX";
 export const SHOW_DASHBOARD_DIALOG = "SHOW_DASHBOARD_DIALOG";
 export const HIDE_DASHBOARD_DIALOG = "HIDE_DASHBOARD_DIALOG";
 
+export const SHOW_PASSWORD_DIALOG = "SHOW_PASSWORD_DIALOG";
+export const HIDE_PASSWORD_DIALOG = "HIDE_PASSWORD_DIALOG";
+
 export const FETCH_GROUPS = "FETCH_GROUPS";
 export const FETCH_GROUPS_SUCCESS = "FETCH_GROUPS_SUCCESS";
 
@@ -56,6 +59,22 @@ export const NEW_USER_PASSWORD = "NEW_USER_PASSWORD";
 export const NEW_USER_PASSWORD_CONFIRMATION = "NEW_USER_PASSWORD_CONFIRMATION";
 
 export const STORE_NEW_PASSWORDS_MATCH = "STORE_NEW_PASSWORDS_MATCH";
+
+export const SET_USERNAME_INVALID = "SET_USERNAME_INVALID";
+
+export const ADD_TEMPORARY_GLOBAL_PERMISSION = "ADD_TEMPORARY_GLOBAL_PERMISSION";
+export const REMOVE_TEMPORARY_GLOBAL_PERMISSION = " REMOVE_TEMPORARY_GLOBAL_PERMISSION";
+
+export const ENABLE_USER = "ENABLE_USER";
+export const ENABLE_USER_SUCCESS = "ENABLE_USER_SUCCESS";
+export const ENABLE_USER_FAILURE = "ENABLE_USER_FAILURE";
+export const DISABLE_USER = " DISABLE_USER";
+export const DISABLE_USER_SUCCESS = " DISABLE_USER_SUCCESS";
+export const DISABLE_USER_FAILURE = " DISABLE_USER_FAILURE";
+
+export const FETCH_USER_ASSIGNMENTS = "FETCH_USER_ASSIGNMENTS";
+export const FETCH_USER_ASSIGNMENTS_SUCCESS = "FETCH_USER_ASSIGNMENTS_SUCCESS";
+export const CLEAN_USER_ASSIGNMENTS = "CLEAN_USER_ASSIGNMENTS";
 
 export function fetchGroups(showLoading = false) {
   return {
@@ -189,9 +208,34 @@ export function showDashboardDialog(dialogType, editId = null) {
   };
 }
 
+export function showPasswordDialog(editId) {
+  return {
+    type: SHOW_PASSWORD_DIALOG,
+    editId
+  };
+}
+
+export function fetchUserAssignments(userId) {
+  return {
+    type: FETCH_USER_ASSIGNMENTS,
+    userId
+  };
+}
+export function cleanUserAssignments() {
+  return {
+    type: CLEAN_USER_ASSIGNMENTS
+  };
+}
+
 export function hideDashboardDialog() {
   return {
     type: HIDE_DASHBOARD_DIALOG
+  };
+}
+
+export function hidePasswordDialog() {
+  return {
+    type: HIDE_PASSWORD_DIALOG
   };
 }
 
@@ -252,5 +296,42 @@ export function storeNewPasswordsMatch(newPasswordsMatch) {
   return {
     type: STORE_NEW_PASSWORDS_MATCH,
     newPasswordsMatch
+  };
+}
+
+export function setUsernameInvalid(usernameInvalid) {
+  return {
+    type: SET_USERNAME_INVALID,
+    usernameInvalid
+  };
+}
+
+export function addTemporaryPermission(permission, userId) {
+  return {
+    type: ADD_TEMPORARY_GLOBAL_PERMISSION,
+    permission,
+    userId
+  };
+}
+
+export function removeTemporaryPermission(permission, userId) {
+  return {
+    type: REMOVE_TEMPORARY_GLOBAL_PERMISSION,
+    permission,
+    userId
+  };
+}
+
+export function enableUser(userId) {
+  return {
+    type: ENABLE_USER,
+    userId
+  };
+}
+
+export function disableUser(userId) {
+  return {
+    type: DISABLE_USER,
+    userId
   };
 }

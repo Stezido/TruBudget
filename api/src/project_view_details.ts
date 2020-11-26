@@ -1,6 +1,7 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
 import { VError } from "verror";
 
+import WorkflowitemType from "./service/domain/workflowitem_types/types";
 import { getAllowedIntents } from "./authz";
 import Intent from "./authz/intents";
 import { toHttpError } from "./http_errors";
@@ -16,7 +17,7 @@ import * as Subproject from "./service/domain/workflow/subproject";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: "Retrieve details about a specific project.",
       tags: ["project"],
@@ -55,6 +56,8 @@ function mkSwaggerSchema(server: FastifyInstance) {
                         displayName: { type: "string", example: "Build a town-project" },
                         description: { type: "string", example: "A town should be built" },
                         assignee: { type: "string", example: "aSmith" },
+                        validator: { type: "string", example: "aSmith" },
+                        workflowitemType: { type: "string", example: "general" },
                         thumbnail: { type: "string", example: "/Thumbnail_0001.jpg" },
                         tags: {
                           type: "array",
@@ -127,6 +130,8 @@ interface ExposedSubproject {
     displayName: string;
     description: string;
     assignee?: string;
+    validator?: string;
+    WorkflowitemType?: WorkflowitemType;
     currency: string;
     projectedBudgets: Array<{
       organization: string;
@@ -144,12 +149,21 @@ interface ExposedProjectDetails {
 
 interface Service {
   getProject(ctx: Ctx, user: ServiceUser, projectId: string): Promise<Result.Type<Project.Project>>;
-  // TODO: add Result.Type for subprojects
-  getSubprojects(ctx: Ctx, user: ServiceUser, projectId: string): Promise<Subproject.Subproject[]>;
+  getSubprojects(
+    ctx: Ctx,
+    user: ServiceUser,
+    projectId: string,
+  ): Promise<Result.Type<Subproject.Subproject[]>>;
+}
+
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+  };
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/project.viewDetails`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -195,9 +209,13 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
           },
         };
 
-        const subprojects = await service.getSubprojects(ctx, user, projectId);
+        const subprojectsResult = await service.getSubprojects(ctx, user, projectId);
+        if (Result.isErr(subprojectsResult)) {
+          throw new VError(subprojectsResult, "project.viewDetails failed");
+        }
+        const subprojects: Subproject.Subproject[] = subprojectsResult;
 
-        const exposedSubprojects: ExposedSubproject[] = subprojects.map(subproject => ({
+        const exposedSubprojects: ExposedSubproject[] = subprojects.map((subproject) => ({
           allowedIntents: getAllowedIntents([user.id].concat(user.groups), subproject.permissions),
           data: {
             id: subproject.id,
@@ -206,6 +224,8 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
             displayName: subproject.displayName,
             description: subproject.description,
             assignee: subproject.assignee,
+            validator: subproject.validator,
+            workflowitemType: subproject.workflowitemType,
             currency: subproject.currency,
             projectedBudgets: subproject.projectedBudgets,
             additionalData: subproject.additionalData,

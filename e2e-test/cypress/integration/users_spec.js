@@ -80,7 +80,7 @@ describe("Users/Groups Dashboard", function() {
 
   it("Create new user", function() {
     cy.get("[data-test=create]").click();
-    cy.get("[data-test=fullname] input")
+    cy.get("[data-test=accountname] input")
       .type("Test User")
       .should("have.value", "Test User");
     cy.get("[data-test=username] input")
@@ -99,5 +99,21 @@ describe("Users/Groups Dashboard", function() {
         expect($th).to.have.length(1);
         expect($th.first()).to.have.text("testuser");
       });
+  });
+
+  it("New user cannot be named 'root'", function() {
+    cy.get("[data-test=create]").click();
+    cy.get("[data-test=accountname] input")
+      .type("root")
+      .should("have.value", "root");
+    cy.get("[data-test=username] input")
+      .type("root")
+      .should("have.value", "root");
+    cy.get("[data-test=password] input")
+      .type("test")
+      .should("have.value", "test");
+    cy.get("[data-test=submit]").click();
+    cy.get("#username-helper-text").contains("Invalid login ID");
+    cy.get("[data-test=cancel]").click();
   });
 });

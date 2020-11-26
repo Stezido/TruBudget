@@ -3,7 +3,6 @@ import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
 import { InvalidCommand } from "../errors/invalid_command";
-import { NotAuthorized } from "../errors/not_authorized";
 import { NotFound } from "../errors/not_found";
 import { PreconditionError } from "../errors/precondition_error";
 import { Identity } from "../organization/identity";
@@ -23,11 +22,15 @@ interface Repository {
     projectId: string,
     subprojectId: string,
   ): Promise<Result.Type<Workflowitem.Workflowitem[]>>;
-  getUsersForIdentity(identity: Identity): Promise<UserRecord.Id[]>;
+  getUsersForIdentity(identity: Identity): Promise<Result.Type<UserRecord.Id[]>>;
   getSubproject(
     projectId: string,
     subprojectId: string,
   ): Promise<Result.Type<Subproject.Subproject>>;
+  applyWorkflowitemType(
+    event: BusinessEvent,
+    workflowitem: Workflowitem.Workflowitem,
+  ): Result.Type<BusinessEvent[]>;
 }
 
 export async function closeWorkflowitem(
@@ -37,11 +40,12 @@ export async function closeWorkflowitem(
   subprojectId: Subproject.Id,
   workflowitemId: Id,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
-  const workflowitems = await repository.getWorkflowitems(projectId, subprojectId);
-  if (Result.isErr(workflowitems)) {
-    return new NotFound(ctx, "subproject", subprojectId);
+): Promise<Result.Type<BusinessEvent[]>> {
+  const workflowitemsResult = await repository.getWorkflowitems(projectId, subprojectId);
+  if (Result.isErr(workflowitemsResult)) {
+    return new VError(workflowitemsResult, "failed to get workflowitems");
   }
+  const workflowitems = workflowitemsResult;
 
   const subproject = await repository.getSubproject(projectId, subprojectId);
   if (Result.isErr(subproject)) {
@@ -51,7 +55,7 @@ export async function closeWorkflowitem(
   const { workflowitemOrdering } = subproject;
 
   const sortedWorkflowitems = sortWorkflowitems(workflowitems, workflowitemOrdering);
-  const workflowitemToClose = sortedWorkflowitems.find(item => item.id === workflowitemId);
+  const workflowitemToClose = sortedWorkflowitems.find((item) => item.id === workflowitemId);
 
   if (workflowitemToClose === undefined) {
     return new NotFound(ctx, "workflowitem", workflowitemId);
@@ -59,7 +63,7 @@ export async function closeWorkflowitem(
 
   // Don't do anything in case the workflowitem is already closed:
   if (workflowitemToClose.status === "closed") {
-    return { newEvents: [] };
+    return [];
   }
 
   const publisher = closingUser.id;
@@ -74,15 +78,31 @@ export async function closeWorkflowitem(
     return new VError(closeEvent, "failed to create event");
   }
 
+  const assignedIdentitiesResult = await repository.getUsersForIdentity(
+    workflowitemToClose.assignee,
+  );
+  if (Result.isErr(assignedIdentitiesResult)) {
+    return new VError(
+      assignedIdentitiesResult,
+      `fetch users for ${workflowitemToClose.assignee} failed`,
+    );
+  }
+  const assignedIdentities = assignedIdentitiesResult;
+
+  // Check if user is allowed to close the workflowitem
   if (closingUser.id !== "root") {
-    const intent = "workflowitem.close";
-    if (!Workflowitem.permits(workflowitemToClose, closingUser, [intent])) {
-      return new NotAuthorized({
+    if (subproject.validator !== undefined && subproject.validator !== closingUser.id) {
+      return new PreconditionError(
         ctx,
-        userId: closingUser.id,
-        intent,
-        target: workflowitemToClose,
-      });
+        closeEvent,
+        "Only the validator of this subproject is allowed to close workflowitems",
+      );
+    } else if (!assignedIdentities.includes(closingUser.id)) {
+      return new PreconditionError(
+        ctx,
+        closeEvent,
+        "Only the assignee is allowed to close the workflowitem.",
+      );
     }
   }
 
@@ -107,23 +127,35 @@ export async function closeWorkflowitem(
   }
 
   // Create notification events:
-  const recipients = workflowitemToClose.assignee
-    ? await repository.getUsersForIdentity(workflowitemToClose.assignee)
-    : [];
-  const notifications = recipients
-    // The issuer doesn't receive a notification:
-    .filter(userId => userId !== closingUser.id)
-    .map(recipient =>
-      NotificationCreated.createEvent(
-        ctx.source,
-        closingUser.id,
-        recipient,
-        closeEvent,
-        projectId,
-        subprojectId,
-        workflowitemId,
-      ),
-    );
+  const notifications: Result.Type<NotificationCreated.Event[]> = assignedIdentities.reduce(
+    (notifications, recipient) => {
+      // The issuer doesn't receive a notification:
+      if (recipient !== closingUser.id) {
+        const notification = NotificationCreated.createEvent(
+          ctx.source,
+          closingUser.id,
+          recipient,
+          closeEvent,
+          projectId,
+        );
+        if (Result.isErr(notification)) {
+          return new VError(notification, "failed to create notification event");
+        }
+        notifications.push(notification);
+      }
+      return notifications;
+    },
+    [] as NotificationCreated.Event[],
+  );
+  if (Result.isErr(notifications)) {
+    return new VError(notifications, "failed to create notification events");
+  }
 
-  return { newEvents: [closeEvent, ...notifications] };
+  const workflowitemTypeEvents = repository.applyWorkflowitemType(closeEvent, workflowitemToClose);
+
+  if (Result.isErr(workflowitemTypeEvents)) {
+    return new VError(workflowitemTypeEvents, "failed to apply workflowitem type");
+  }
+
+  return [closeEvent, ...notifications, ...workflowitemTypeEvents];
 }

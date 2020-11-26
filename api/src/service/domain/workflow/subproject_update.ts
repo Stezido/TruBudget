@@ -1,7 +1,6 @@
 import Joi = require("joi");
 import isEqual = require("lodash.isequal");
 import { VError } from "verror";
-
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
@@ -30,7 +29,7 @@ interface Repository {
     projectId: Project.Id,
     subprojectId: Subproject.Id,
   ): Promise<Result.Type<Subproject.Subproject>>;
-  getUsersForIdentity(identity: Identity): Promise<UserRecord.Id[]>;
+  getUsersForIdentity(identity: Identity): Promise<Result.Type<UserRecord.Id[]>>;
 }
 
 export async function updateSubproject(
@@ -40,7 +39,7 @@ export async function updateSubproject(
   subprojectId: Subproject.Id,
   data: RequestData,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<BusinessEvent[]>> {
   const subproject = await repository.getSubproject(subprojectId, subprojectId);
 
   if (Result.isErr(subproject)) {
@@ -48,16 +47,17 @@ export async function updateSubproject(
   }
 
   // Create the new event:
-  const subprojectUpdated = SubprojectUpdated.createEvent(
+  const subprojectUpdatedResult = SubprojectUpdated.createEvent(
     ctx.source,
     issuer.id,
     projectId,
     subprojectId,
     data,
   );
-  if (Result.isErr(subprojectUpdated)) {
-    return new VError(subprojectUpdated, "failed to create event");
+  if (Result.isErr(subprojectUpdatedResult)) {
+    return new VError(subprojectUpdatedResult, "failed to create event");
   }
+  const subprojectUpdated = subprojectUpdatedResult;
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -75,28 +75,38 @@ export async function updateSubproject(
 
   // Only emit the event if it causes any changes:
   if (isEqualIgnoringLog(subproject, result)) {
-    return { newEvents: [] };
+    return [];
   }
 
   // Create notification events:
-  const recipients = subproject.assignee
-    ? await repository.getUsersForIdentity(subproject.assignee)
-    : [];
-  const notifications = recipients
-    // The issuer doesn't receive a notification:
-    .filter(userId => userId !== issuer.id)
-    .map(recipient =>
-      NotificationCreated.createEvent(
-        ctx.source,
-        issuer.id,
-        recipient,
-        subprojectUpdated,
-        projectId,
-        subprojectId,
-      ),
-    );
-
-  return { newEvents: [subprojectUpdated, ...notifications] };
+  let notifications: Result.Type<NotificationCreated.Event[]> = [];
+  if (subproject.assignee !== undefined) {
+    const recipientsResult = await repository.getUsersForIdentity(subproject.assignee);
+    if (Result.isErr(recipientsResult)) {
+      return new VError(recipientsResult, `fetch users for ${subproject.assignee} failed`);
+    }
+    notifications = recipientsResult.reduce((notifications, recipient) => {
+      // The issuer doesn't receive a notification:
+      if (recipient !== issuer.id) {
+        const notification = NotificationCreated.createEvent(
+          ctx.source,
+          issuer.id,
+          recipient,
+          subprojectUpdated,
+          projectId,
+        );
+        if (Result.isErr(notification)) {
+          return new VError(notification, "failed to create notification event");
+        }
+        notifications.push(notification);
+      }
+      return notifications;
+    }, [] as NotificationCreated.Event[]);
+  }
+  if (Result.isErr(notifications)) {
+    return new VError(notifications, "failed to create notification events");
+  }
+  return [subprojectUpdated, ...notifications];
 }
 
 function isEqualIgnoringLog(

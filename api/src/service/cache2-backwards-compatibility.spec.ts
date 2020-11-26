@@ -138,6 +138,35 @@ const workflowitemStreamItems: any[] = [
     blocktime: 1,
     txid: "1",
   },
+  {
+    publishers: [],
+    keys: [],
+    data: {
+      json: {
+        type: "workflowitem_created",
+        source: "http",
+        publisher: "root",
+        projectId: "projectId",
+        subprojectId: "subprojectId",
+        workflowitem: {
+          id: "workflowitemId",
+          status: "open",
+          displayName: "foo",
+          description: "",
+          assignee: "root",
+          amountType: "N/A",
+          documents: [],
+          permissions: {},
+          additionalData: {},
+          workflowitemType: "general",
+        },
+        time: "2019-07-25T12:03:25.315Z",
+      },
+    },
+    confirmations: 0,
+    blocktime: 1,
+    txid: "1",
+  },
 ];
 const addUnknownPropertyToWorkflowitem = items => {
   items.forEach(item => {
@@ -263,7 +292,7 @@ const notificationStreamItems: any[] = [
         source: "http",
         time: "2019-07-25T12:03:25.315Z",
         publisher: "root",
-        notificationId: "7f4f0085-e962-4171-b100-1c9c200cb035",
+        notificationId: "2cfd0663-1770-4184-974e-63129061d389",
         recipient: "test",
         businessEvent: {
           type: "project_updated",

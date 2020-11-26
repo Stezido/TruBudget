@@ -8,16 +8,12 @@ import _isEmpty from "lodash/isEmpty";
 import _isEqual from "lodash/isEqual";
 import _isString from "lodash/isString";
 import _isUndefined from "lodash/isUndefined";
+import _isObject from "lodash/isObject";
+import _every from "lodash/every";
+import _map from "lodash/map";
 import React from "react";
-
 import currencies from "./currency";
 import strings from "./localizeStrings";
-
-const numberFormat = {
-  decimal: ".",
-  thousand: ",",
-  precision: 2
-};
 
 export const toJS = WrappedComponent => wrappedComponentProps => {
   const KEY = 0;
@@ -34,8 +30,9 @@ export const toJS = WrappedComponent => wrappedComponentProps => {
 };
 
 const getCurrencyFormat = currency => ({
-  ...numberFormat,
-  ...currencies[currency]
+  ...strings.format.numberFormat,
+  ...currencies[currency],
+  format: strings.format.currencyPositon
 });
 
 export const compareObjects = (items, itemToAdd) => {
@@ -66,6 +63,12 @@ export const fromAmountString = (amount, currency) => {
   return accounting.unformat(amount, getCurrencyFormat(currency).decimal);
 };
 
+export const getDisplayNameFromUsers = (id, users) => {
+  if (!users) return "";
+  const user = users.find(user => user.id === id);
+  return user.displayName;
+};
+
 export const getCurrencies = () => {
   return Object.keys(currencies).map(currency => {
     return {
@@ -80,11 +83,22 @@ export const toAmountString = (amount, currency) => {
     return "";
   }
   if (!currency) {
-    return accounting.formatNumber(amount, numberFormat.precision, numberFormat.thousand, numberFormat.decimal);
+    return accounting.formatNumber(
+      amount,
+      strings.format.numberFormat.precision,
+      strings.format.numberFormat.thousand,
+      strings.format.numberFormat.decimal
+    );
   }
 
   return accounting.formatMoney(amount, getCurrencyFormat(currency));
 };
+
+export const validateLanguagePattern = amount => {
+  return strings.format.numberRegex.test(amount.toString(10));
+};
+
+export const numberSignsRegex = /^[0-9,.-]*$/;
 
 export const unixTsToString = ts => {
   let dateString = dayjs.unix(ts).format("MMM D, YYYY");
@@ -130,5 +144,73 @@ export const preselectCurrency = (parentCurrency, setCurrency) => {
 };
 
 export const formattedTag = tag => {
-  return tag.toLowerCase().replace(/[\s#]/g, "");
+  return tag.replace(/[\s#]/g, "");
 };
+
+export const shortenedDisplayName = displayName => {
+  const maxLength = 50;
+  if (displayName.length > maxLength) {
+    return displayName.slice(0, maxLength) + "...";
+  }
+  return displayName;
+};
+
+export function makePermissionReadable(intent) {
+  return strings.permissions[intent.replace(/[.]/g, "_")] || intent;
+}
+
+export const dateFormat = () => {
+  return "DD.MM.YYYY";
+};
+
+export const isDateReached = date => {
+  const today = dayjs(new Date());
+  return today.isAfter(date);
+};
+
+export const isEmailAddressValid = emailAddress => {
+  const validEmailAddressRegex = /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/;
+  return validEmailAddressRegex.test(emailAddress);
+};
+
+export const convertToURLQuery = searchBarString => {
+  return searchBarString
+    .replace(/[:]/g, "=")
+    .replace(/[ ]/g, "&")
+    .replace(/[&]{2,}/g, "&");
+};
+
+export const convertToSearchBarString = urlQueryString => {
+  return urlQueryString.replace(/[=]/g, ":").replace(/[&]/g, " ");
+};
+
+export function hasUserAssignments(assignments) {
+  const hasHiddenAssignments =
+    assignments.hiddenAssignments !== undefined &&
+    (assignments.hiddenAssignments.hasHiddenProjects === true ||
+      assignments.hiddenAssignments.hasHiddenSubprojects === true ||
+      assignments.hiddenAssignments.hasHiddenWorkflowitems === true);
+
+  return (
+    !_isEmpty(assignments.projects) ||
+    !_isEmpty(assignments.subprojects) ||
+    !_isEmpty(assignments.workflowitems) ||
+    hasHiddenAssignments
+  );
+}
+
+/*
+ * isEmptyDeep(obj) checks all nested properties of the object.
+ * If every property is empty, it return true, otherwise false
+ * A property can be an object or array
+ * If property values are falsy (0, false), it is not considered as empty
+ */
+export function isEmptyDeep(obj) {
+  if (_isObject(obj)) {
+    if (Object.keys(obj).length === 0) return true;
+    return _every(_map(obj, v => isEmptyDeep(v)));
+  } else if (_isString(obj)) {
+    return !obj.length;
+  }
+  return false;
+}

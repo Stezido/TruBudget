@@ -23,13 +23,15 @@ const baseWorkflowitem: Workflowitem = {
   subprojectId,
   createdAt: new Date().toISOString(),
   status: "open",
+  assignee: alice.id,
   displayName: "dummy",
   description: "dummy",
   amountType: "N/A",
   documents: [],
-  permissions: { "workflowitem.assign": [alice, bob, charlie].map(x => x.id) },
+  permissions: { "workflowitem.assign": [alice, bob, charlie].map((x) => x.id) },
   log: [],
   additionalData: {},
+  workflowitemType: "general",
 };
 
 describe("assign workflowitem: authorization", () => {
@@ -45,11 +47,12 @@ describe("assign workflowitem: authorization", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem, permissions: {} }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -70,11 +73,12 @@ describe("assign workflowitem: authorization", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem, permissions: {} }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -96,10 +100,11 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -118,11 +123,12 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -141,11 +147,12 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem, assignee: alice.id }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -164,12 +171,13 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem, assignee: alice.id }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           if (identity === "alice_and_bob") return ["alice", "bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -188,10 +196,11 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => new Error("NotFound"),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -212,10 +221,11 @@ describe("assign workflowitem: preconditions", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -243,11 +253,12 @@ describe("assign workflowitem: notifications", () => {
       workflowitemId,
       {
         getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-        getUsersForIdentity: async identity => {
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           if (identity === "bob") return ["bob"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -260,7 +271,7 @@ describe("assign workflowitem: notifications", () => {
     const { newEvents } = result;
     assert.isTrue(
       newEvents.some(
-        event => event.type === "notification_created" && event.recipient === assignee.id,
+        (event) => event.type === "notification_created" && event.recipient === assignee.id,
       ),
       "A new notification has been created",
     );
@@ -277,11 +288,12 @@ describe("assign workflowitem: notifications", () => {
       subprojectId,
       workflowitemId,
       {
-        getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-        getUsersForIdentity: async identity => {
+        getWorkflowitem: async () => ({ ...baseWorkflowitem, assignee: bob.id }),
+        getUsersForIdentity: async (identity) => {
           if (identity === "alice") return ["alice"];
           throw Error(`unexpected identity: ${identity}`);
         },
+        applyWorkflowitemType: () => [],
       },
     );
 
@@ -294,7 +306,7 @@ describe("assign workflowitem: notifications", () => {
     const { newEvents } = result;
     assert.isTrue(newEvents.length > 0);
     assert.isFalse(
-      newEvents.some(event => event.type === "notification_created"),
+      newEvents.some((event) => event.type === "notification_created"),
       "No notification has been issued",
     );
   });
@@ -314,12 +326,13 @@ describe("assign workflowitem: notifications", () => {
         workflowitemId,
         {
           getWorkflowitem: async () => ({ ...baseWorkflowitem }),
-          getUsersForIdentity: async identity => {
+          getUsersForIdentity: async (identity) => {
             if (identity === "alice") return ["alice"];
             if (identity === "bob") return ["bob"];
             if (identity === "alice_and_bob_and_charlie") return ["alice", "bob", "charlie"];
             throw Error(`unexpected identity: ${identity}`);
           },
+          applyWorkflowitemType: () => [],
         },
       );
       assert.isTrue(Result.isOk(result), (result as Error).message);
@@ -332,7 +345,7 @@ describe("assign workflowitem: notifications", () => {
       // A notification has been issued to both Bob and Charlie, but not to Alice, as she
       // is the user who has changed the workflowitem's assignee:
       function isNotificationFor(userId: string): (e: BusinessEvent) => boolean {
-        return event => event.type === "notification_created" && event.recipient === userId;
+        return (event) => event.type === "notification_created" && event.recipient === userId;
       }
 
       assert.isFalse(

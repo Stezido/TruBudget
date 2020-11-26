@@ -4,7 +4,6 @@ import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
 import { InvalidCommand } from "../errors/invalid_command";
-import { NotAuthorized } from "../errors/not_authorized";
 import { NotFound } from "../errors/not_found";
 import { PreconditionError } from "../errors/precondition_error";
 import { Identity } from "../organization/identity";
@@ -19,7 +18,7 @@ import * as Subproject from "./subproject";
 interface Repository {
   getProject(): Promise<Result.Type<Project.Project>>;
   getSubprojects(projectId: string): Promise<Result.Type<Subproject.Subproject[]>>;
-  getUsersForIdentity(identity: Identity): Promise<UserRecord.Id[]>;
+  getUsersForIdentity(identity: Identity): Promise<Result.Type<UserRecord.Id[]>>;
 }
 
 export async function closeProject(
@@ -44,6 +43,20 @@ export async function closeProject(
     return new VError(projectClosed, "failed to create event");
   }
 
+  const assignedIdentitiesResult = await repository.getUsersForIdentity(project.assignee);
+  if (Result.isErr(assignedIdentitiesResult)) {
+    return new VError(assignedIdentitiesResult, `fetch users for ${project.assignee} failed`);
+  }
+  const assignedIdentities = assignedIdentitiesResult;
+
+  if (issuer.id !== "root" && !assignedIdentities.includes(issuer.id)) {
+    return new PreconditionError(
+      ctx,
+      projectClosed,
+      "Only the assignee is allowed to close the subproject.",
+    );
+  }
+
   // Make sure all subprojects are already closed (we rely on closeSubproject doing a
   // similar check with respect to the subproject's workflowitems):
   const subprojects = await repository.getSubprojects(projectId);
@@ -54,14 +67,8 @@ export async function closeProject(
       `could not find subprojects for project ${projectId}`,
     );
   }
-  if (subprojects.some(x => x.status !== "closed")) {
+  if (subprojects.some((x) => x.status !== "closed")) {
     return new PreconditionError(ctx, projectClosed, "at least one subproject is not closed yet");
-  }
-
-  // Check authorization (if not root):
-  const intent = "project.close";
-  if (issuer.id !== "root" && !Project.permits(project, issuer, [intent])) {
-    return new NotAuthorized({ ctx, userId: issuer.id, intent, target: project });
   }
 
   // Check that the new event is indeed valid:
@@ -72,13 +79,28 @@ export async function closeProject(
   project = validationResult;
 
   // Create notification events:
-  const recipients = project.assignee ? await repository.getUsersForIdentity(project.assignee) : [];
-  const notifications = recipients
-    // The issuer doesn't receive a notification:
-    .filter(userId => userId !== issuer.id)
-    .map(recipient =>
-      NotificationCreated.createEvent(ctx.source, issuer.id, recipient, projectClosed, projectId),
-    );
-
+  const notifications: Result.Type<NotificationCreated.Event[]> = assignedIdentities.reduce(
+    (notifications, recipient) => {
+      // The issuer doesn't receive a notification:
+      if (recipient !== issuer.id) {
+        const notification = NotificationCreated.createEvent(
+          ctx.source,
+          issuer.id,
+          recipient,
+          projectClosed,
+          projectId,
+        );
+        if (Result.isErr(notification)) {
+          return new VError(notification, "failed to create notification event");
+        }
+        notifications.push(notification);
+      }
+      return notifications;
+    },
+    [] as NotificationCreated.Event[],
+  );
+  if (Result.isErr(notifications)) {
+    return new VError(notifications, "failed to create notification events");
+  }
   return { newEvents: [projectClosed, ...notifications], project };
 }

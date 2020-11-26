@@ -1,7 +1,7 @@
 import _isEmpty from "lodash/isEmpty";
 import React from "react";
 
-import { compareObjects, fromAmountString } from "../../helper";
+import { compareObjects, fromAmountString, shortenedDisplayName, isEmptyDeep } from "../../helper";
 import strings from "../../localizeStrings";
 import CreationDialog from "../Common/CreationDialog";
 import ProjectDialogContent from "./ProjectDialogContent";
@@ -17,16 +17,18 @@ const handleCreate = props => {
     tags
   );
   onDialogCancel();
-  storeSnackbarMessage(strings.common.added + " " + strings.common.project + " " + displayName);
+  storeSnackbarMessage(
+    strings.formatString(strings.snackbar.creation_succeed_message, shortenedDisplayName(displayName))
+  );
 };
 
 const handleEdit = props => {
   const { editProject, onDialogCancel, projectToAdd, projects, storeSnackbarMessage } = props;
 
   const changes = compareObjects(projects, projectToAdd);
+  const hasChanges = !isEmptyDeep(changes);
 
-  if (!_isEmpty(changes)) {
-    // TODO: Fix changes object when editing projectedBudget is enabled
+  if (hasChanges) {
     editProject(
       projectToAdd.id,
       {
@@ -39,7 +41,10 @@ const handleEdit = props => {
       },
       changes.deletedProjectedBudgets
     );
-    storeSnackbarMessage(strings.common.edited + " " + strings.common.project + " " + projectToAdd.displayName);
+    console.log();
+    storeSnackbarMessage(
+      strings.formatString(strings.snackbar.update_succeed_message, shortenedDisplayName(projectToAdd.displayName))
+    );
   }
   onDialogCancel();
 };
@@ -48,9 +53,8 @@ const ProjectDialog = props => {
   const { projects, projectToAdd, editDialogShown, creationDialogShown } = props;
   const { displayName } = projectToAdd;
   const changes = compareObjects(projects, projectToAdd);
-  if (changes.deletedProjectedBudgets && changes.deletedProjectedBudgets.length === 0) {
-    delete changes.deletedProjectedBudgets;
-  }
+  const hasChanges = !isEmptyDeep(changes);
+
   const specificProps = props.editDialogShown
     ? {
         handleSubmit: handleEdit,
@@ -65,7 +69,7 @@ const ProjectDialog = props => {
     {
       title: strings.project.project_details,
       content: <ProjectDialogContent {...props} />,
-      nextDisabled: _isEmpty(displayName) || (_isEmpty(changes) && props.editDialogShown)
+      nextDisabled: _isEmpty(displayName) || (!hasChanges && editDialogShown)
     }
   ];
 

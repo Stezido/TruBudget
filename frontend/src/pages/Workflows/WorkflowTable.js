@@ -1,5 +1,5 @@
 import React from "react";
-import { arrayMove } from "react-sortable-hoc";
+import arrayMove from "array-move";
 
 import Card from "@material-ui/core/Card";
 import CardContent from "@material-ui/core/CardContent";
@@ -9,6 +9,8 @@ import Typography from "@material-ui/core/Typography";
 import WorkflowDetails from "./WorkflowDetails";
 import WorkflowList from "./WorkflowList";
 import strings from "../../localizeStrings";
+
+import WorkflowEmptyState from "./WorkflowEmptyState";
 
 const style = {
   paddingLeft: "0px"
@@ -45,13 +47,19 @@ const createWorkflowItems = ({ workflowItems, ...props }) => {
     props.updateWorkflowOrderOnState(workflowItems);
   };
 
-  return <WorkflowList lockAxis={"y"} workflowItems={workflowItems} onSortEnd={onSortEnd} {...props} />;
+  return workflowItems.length > 0 ? (
+    <WorkflowList lockAxis={"y"} workflowItems={workflowItems} onSortEnd={onSortEnd} {...props} />
+  ) : (
+    <div style={{ backgroundColor: "#f3f3f3" }}>
+      <WorkflowEmptyState />
+    </div>
+  );
 };
 
 // Not sure about the Name
 const WorkflowTable = props => {
   return (
-    <div style={{ paddingBottom: "8px" }}>
+    <div data-test="workflowitem-table" style={{ paddingBottom: "8px" }}>
       {createTableHeader(props)}
       {createWorkflowItems(props)}
       {<WorkflowDetails {...props} />}

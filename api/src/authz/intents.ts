@@ -5,6 +5,9 @@ type Intent =
   | "global.revokePermission"
   | "global.createProject"
   | "global.createUser"
+  | "global.enableUser"
+  | "global.disableUser"
+  | "global.listAssignments"
   | "global.createGroup"
   | "user.authenticate"
   | "user.changePassword"
@@ -66,8 +69,10 @@ export const globalIntents: Intent[] = [
   "global.revokePermission",
   "global.createProject",
   "global.createUser",
+  "global.enableUser",
+  "global.disableUser",
+  "global.listAssignments",
   "global.createGroup",
-  "user.authenticate",
   "network.registerNode",
   "network.list",
   "network.listActive",
@@ -83,6 +88,9 @@ export const userAssignableIntents: Intent[] = [
   "global.revokePermission",
   "global.createProject",
   "global.createUser",
+  "global.enableUser",
+  "global.disableUser",
+  "global.listAssignments",
   "global.createGroup",
   "group.addUser",
   "group.removeUser",
@@ -159,6 +167,9 @@ export const allIntents: Intent[] = [
   "global.revokePermission",
   "global.createProject",
   "global.createUser",
+  "global.enableUser",
+  "global.disableUser",
+  "global.listAssignments",
   "global.createGroup",
   "user.authenticate",
   "user.changePassword",

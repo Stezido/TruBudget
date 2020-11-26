@@ -5,9 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-# Changelog
-
-## [Unreleased]
+<!-- ## Unreleased -->
 
 <!-- ### Added -->
 
@@ -17,14 +15,212 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 <!-- ### Removed -->
 
-<!-- ### Fixed -->
+### Fixed
+
+- Fixed a Bug where labels e.g. on login ID field were too large and not readable anymore [#625](https://github.com/openkfw/TruBudget/issues/625)
 
 <!-- ### Security -->
 
-All notable changes to this project will be documented in this file.
+## [1.16.0] - 2020-11-16
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+### Added
+
+- The export of the excel file is now available in all TruBudget languages [#567](https://github.com/openkfw/TruBudget/issues/567)
+- Added a validator field on the subproject level [#572](https://github.com/openkfw/TruBudget/issues/572)
+- Added an option to set a fixed worklowitem type on subproject level [#572](https://github.com/openkfw/TruBudget/issues/572)
+
+### Changed
+
+- Update french translations [#588](https://github.com/openkfw/TruBudget/pull/588)
+- Removed the close permissions on all levels. Now only the specific assignee is permitted to close these. [#572](https://github.com/openkfw/TruBudget/issues/572)
+
+### Fixed
+
+- Fixed a bug where the user needed list-permissions that are not necessary [#562](https://github.com/openkfw/TruBudget/issues/562)
+- Fixed a bug where the confirmation dialog persists after pressing the browser's back button [#544](https://github.com/openkfw/TruBudget/issues/544)
+- Project tags now allow accents and upper and lowercase letters [#568](https://github.com/openkfw/TruBudget/issues/568)
+
+## [1.15.0] - 2020-10-27
+
+### Added
+
+- Script for fixing invalid backup files, as a workaround to issue [#513](https://github.com/openkfw/TruBudget/issues/513)
+- Status page to show connection quality of all Trubudget services [#553](https://github.com/openkfw/TruBudget/issues/553)
+
+### Changed
+
+- Changed some french translations [#566](https://github.com/openkfw/TruBudget/issues/566)
+
+### Fixed
+
+- The edit button is now only visible to the user that created it [#556](https://github.com/openkfw/TruBudget/issues/556)
+- Fixed a bug where a user can disable himself [#554](https://github.com/openkfw/TruBudget/issues/554)
+- Fixed a bug where multiple loading indicators are shown in the confirmation dialog [#555](https://github.com/openkfw/TruBudget/issues/555)
+- Show the loading indicator while uploading a document [#558](https://github.com/openkfw/TruBudget/issues/558)
+- Fixed a style bug for adding users to a group [#557](https://github.com/openkfw/TruBudget/issues/557)
+
+## [1.14.0] - 2020-10-07
+
+### Added
+
+- Security FAQ [#542](https://github.com/openkfw/TruBudget/pull/542)
+
+### Fixed
+
+- Fixed a bug where the email field dissappears in the user profile [#551](https://github.com/openkfw/TruBudget/issues/551)
+- Fixed a bug where opening the user profile resulted in an error [#549](https://github.com/openkfw/TruBudget/issues/549)
+- Allow typing a comma separator when editing a projected budget [#517](https://github.com/openkfw/TruBudget/issues/517)
+- Projected budgets are shown in the language specific format [#559](https://github.com/openkfw/TruBudget/issues/559)
+- Fixed a bug where the workflowitem budget changes its value unexpectly [#563](https://github.com/openkfw/TruBudget/issues/563)
+
+# [1.13.0] - 2020-09-16
+
+### Added
+
+- Added confirmation dialog for disabling and enabling users [#537](https://github.com/openkfw/TruBudget/pull/537)
+- Added table of user assignments for disable users dialog [#537](https://github.com/openkfw/TruBudget/pull/537)
+
+### Fixed
+
+- Fixed the global permission list to set permissions to disable or enable users [#537](https://github.com/openkfw/TruBudget/pull/537)
+
+# [1.12.0] - 2020-08-10
+
+### Added
+
+- Documentation of how to update/backup a node correctly [#19](https://github.com/openkfw/TruBudget/issues/19)
+- Added feature to disable and enable users [#241](https://github.com/openkfw/TruBudget/issues/241)
+
+### Fixed
+
+- Fixed a bug where it was impossible to edit an email address of a user [#510](https://github.com/openkfw/TruBudget/issues/510)
+- The excel sheet is now exported including the fields `dueDate` and `workflowitemType` [#511](https://github.com/openkfw/TruBudget/issues/511)
+- Fixed a bug where all displayed versions disappeared after switching page [#512](https://github.com/openkfw/TruBudget/issues/512)
+- Prevent a user from revoking a permission from him-/herself at workflowitem level [#514](https://github.com/openkfw/TruBudget/issues/514)
+- Prevent creating a closed workflowitem, subproject or project [#411](https://github.com/openkfw/TruBudget/issues/411)
+
+# [1.11.0] - 2020-06-26
+
+### Added
+
+- Add optional due-date for workflowitems [#71](https://github.com/openkfw/TruBudget/issues/71)
+- Workflowitem are typed. New types: "general", "restricted" [#483](https://github.com/openkfw/TruBudget/issues/483)
+
+### Changed
+
+- Change field names for user creation [#498](https://github.com/openkfw/TruBudget/issues/498)
+- Hide project search button instead of disabling it [#497](https://github.com/openkfw/TruBudget/issues/497)
+- Hide badge of due date when sorting workflowitems [#505](https://github.com/openkfw/TruBudget/issues/505)
+
+### Fixed
+
+- Fixed a bug where the configuration of the Email notification service was not applied correctly [#496](https://github.com/openkfw/TruBudget/pull/496)
+- Fixed a bug where the history of a workflowitem was duplicated by switching tabs[#504](https://github.com/openkfw/TruBudget/issues/504)
+
+# [1.10.0] - 2020-06-08
+
+### Added
+
+- Show dialog before closing project, subproject or workflowitem [#430](https://github.com/openkfw/TruBudget/issues/430)
+- Show privacy notice when creating a user or user group [#466](https://github.com/openkfw/TruBudget/issues/466)
+- Added search feature for histories [#425](https://github.com/openkfw/TruBudget/issues/425)
+- Documents can be uploaded and are shared via offchain-storage [#481](https://github.com/openkfw/TruBudget/issues/481)
+
+### Changed
+
+- Changed date format to DD.MM.YYYY [#480](https://github.com/openkfw/TruBudget/issues/480)
+
+# [1.9.0] - 2020-05-06
+
+### Added
+
+- Added search feature for subprojects [#422](https://github.com/openkfw/TruBudget/issues/422)
+- Show no permissions assigned warning on subproject/workflowitem create [#441](https://github.com/openkfw/TruBudget/issues/441)
+- Placeholders are being shown in case of an empty state [#31](https://github.com/openkfw/TruBudget/issues/31)
+
+# [1.8.0] - 2019-03-16
+
+### Added
+
+- Email notification service [#419](https://github.com/openkfw/TruBudget/issues/419)
+
+### Fixed
+
+- Implement group permissions correctly [#440](https://github.com/openkfw/TruBudget/issues/440)
+- Fix permissions for viewing summary [#440](https://github.com/openkfw/TruBudget/issues/440)
+
+# [1.7.0] - 2019-02-10
+
+### Added
+
+- Support georgian language [#427](https://github.com/openkfw/TruBudget/issues/427)
+
+### Fixed
+
+- Remember language after logout [#420](https://github.com/openkfw/TruBudget/issues/420)
+
+### Changed
+
+- Format currencies and numbers according to the selected language or locale [#135](https://github.com/openkfw/TruBudget/issues/135)
+  - History and notification timestamps only display year/month/day [#426](https://github.com/openkfw/TruBudget/issues/426)
+
+## [1.6.0] - 2019-01-07
+
+### Added
+
+- Search via URL query [#353](https://github.com/openkfw/TruBudget/issues/353)
+
+### Changed
+
+- The analytics total budget is shown whether the user has insufficient permissions or not [#410](https://github.com/openkfw/TruBudget/pull/410)
+- Highlight matches when searching [#356](https://github.com/openkfw/TruBudget/issues/356)
+- Projects can be searched via prefixes. Tag, display name and status are searched for matches. [#359](https://github.com/openkfw/TruBudget/issues/359)
+- Tags can be searched via click on tag [#367](https://github.com/openkfw/TruBudget/issues/367)
+
+### Fixed
+
+- Users are properly logged out when clicking the logout button[#402](https://github.com/openkfw/TruBudget/issues/402)
+- User are not created anymore if the passed organization does not exist[#358](https://github.com/openkfw/TruBudget/issues/358)
+
+## [1.5.0] - 2019-11-27
+
+### Changed
+
+- Granting or revoking project/subproject/workflowitem permissions opens a confirmation dialog [#250](https://github.com/openkfw/TruBudget/pull/250)
+- Assigning a user opens a confirmation dialog[#251](https://github.com/openkfw/TruBudget/pull/251)
+
+### Fixed
+
+- Multiple workflowitems can be edited and reordered [#397](https://github.com/openkfw/TruBudget/issues/397)
+- The api endpoint "project.intent.listPermissions" checks for the right permission [#393](https://github.com/openkfw/TruBudget/issues/393)
+- The edit button of a project/subproject shouldn't be shown when the user has no permissions to update [#395](https://github.com/openkfw/TruBudget/issues/395)
+
+## [1.4.1] - 2019-10-11
+
+### Fixed
+
+- Root user cannot grant global permissions (admin permissions) to first user
+
+### Known Issues
+
+- Multiple workflowitems cannot be edited at once nor reordered #397
+
+## [1.4.0] - 2019-09-04
+
+### Changed
+
+- A new user called 'root' cannot be added [#369](https://github.com/openkfw/TruBudget/issues/369)
+- If a user changes his/her password, the new password has to follow security guidelines [#370](https://github.com/openkfw/TruBudget/issues/370)
+- Disallow root to create projects [#375](https://github.com/openkfw/TruBudget/issues/375)
+- Disallow root to create subprojects [#378](https://github.com/openkfw/TruBudget/issues/378)
+- Disallow root to add workflowitems [#380](https://github.com/openkfw/TruBudget/issues/380)
+- Allow user 'root' to change the passwords of all users [#366](https://github.com/openkfw/TruBudget/issues/366)
+- Rework the editing of project/subproject/workflowitem/global permissions [#245](https://github.com/openkfw/TruBudget/issues/245)
+- Improve project/subproject details-layout and handling of long names [#274](https://github.com/openkfw/TruBudget/issues/274)
+
+### Fixed
+
+- Check if assignee does exist when assigning to a project/subproject/workflowitem [#83](https://github.com/openkfw/TruBudget/issues/83)
 
 ## [1.3.0] - 2019-07-31
 
@@ -341,7 +537,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated translation keys and language-specific formatting.
 - Fixed bug where the subproject permissions dialog would break the details view of another project.
 
-[unreleased]: https://github.com/openkfw/TruBudget/compare/v1.3.0...master
+[unreleased]: https://github.com/openkfw/TruBudget/compare/v1.16.0...master
+[1.16.0]: https://github.com/openkfw/TruBudget/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/openkfw/TruBudget/compare/v1.14.0...v1.15.0
+[1.14.0]: https://github.com/openkfw/TruBudget/compare/v1.13.0...v1.14.0
+[1.13.0]: https://github.com/openkfw/TruBudget/compare/v1.12.0...v1.13.0
+[1.12.0]: https://github.com/openkfw/TruBudget/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/openkfw/TruBudget/compare/v1.10.0...v1.11.0
+[1.10.0]: https://github.com/openkfw/TruBudget/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/openkfw/TruBudget/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/openkfw/TruBudget/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/openkfw/TruBudget/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/openkfw/TruBudget/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/openkfw/TruBudget/compare/v1.4.1...v1.5.0
+[1.4.1]: https://github.com/openkfw/TruBudget/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/openkfw/TruBudget/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/openkfw/TruBudget/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/openkfw/TruBudget/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/openkfw/TruBudget/compare/v1.0.1...v1.1.0

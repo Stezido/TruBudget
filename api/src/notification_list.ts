@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -13,7 +14,7 @@ import * as Workflowitem from "./service/domain/workflow/workflowitem";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       description: "List (a part of) an authenticated user's notifications.",
       tags: ["notification"],
@@ -51,7 +52,7 @@ function mkSwaggerSchema(server: FastifyInstance) {
                   items: {
                     type: "object",
                     properties: {
-                      id: { type: "string", example: "fff7242a-cd42-45e7-9719-8e41c219d8ee" },
+                      id: { type: "string", example: "2cfd0663-1770-4184-974e-63129061d389" },
                       isRead: { type: "boolean", example: false },
                       businessEvent: {
                         type: "object",
@@ -168,7 +169,10 @@ interface ExposedNotification {
 }
 
 interface Service {
-  getNotificationsForUser(ctx: Ctx, user: ServiceUser): Promise<Notification.Notification[]>;
+  getNotificationsForUser(
+    ctx: Ctx,
+    user: ServiceUser,
+  ): Promise<Result.Type<Notification.Notification[]>>;
   getProject(ctx: Ctx, user: ServiceUser, projectId: string): Promise<Result.Type<Project.Project>>;
   getSubproject(
     ctx: Ctx,
@@ -197,7 +201,7 @@ async function getProjectMetadata(
 ): Promise<ProjectWithViewPermissions | ProjectWithoutViewPermissions> {
   const project = await service.getProject(ctx, user, projectId);
   return Result.unwrap_or(
-    Result.map(project, x => ({
+    Result.map(project, (x) => ({
       id: x.id,
       hasViewPermissions: TRUE,
       displayName: x.displayName,
@@ -215,7 +219,7 @@ async function getSubprojectMetadata(
 ): Promise<SubprojectWithViewPermissions | SubprojectWithoutViewPermissions> {
   const subproject = await service.getSubproject(ctx, user, projectId, subprojectId);
   return Result.unwrap_or(
-    Result.map(subproject, x => ({
+    Result.map(subproject, (x) => ({
       id: x.id,
       hasViewPermissions: TRUE,
       displayName: x.displayName,
@@ -240,7 +244,7 @@ async function getWorkflowitemMetadata(
     workflowitemId,
   );
   return Result.unwrap_or(
-    Result.map(workflowitem, x => ({
+    Result.map(workflowitem, (x) => ({
       id: x.id,
       hasViewPermissions: TRUE,
       displayName: x.displayName,
@@ -284,84 +288,101 @@ async function getMetadata(
   }
 }
 
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    offset?: string;
+    limit?: string;
+  };
+}
+
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(`${urlPrefix}/notification.list`, mkSwaggerSchema(server), async (request, reply) => {
-    const ctx: Ctx = { requestId: request.id, source: "http" };
+  server.get<Request>(
+    `${urlPrefix}/notification.list`,
+    mkSwaggerSchema(server),
+    async (request, reply) => {
+      const ctx: Ctx = { requestId: request.id, source: "http" };
 
-    const user: ServiceUser = {
-      id: (request as AuthenticatedRequest).user.userId,
-      groups: (request as AuthenticatedRequest).user.groups,
-    };
+      const user: ServiceUser = {
+        id: (request as AuthenticatedRequest).user.userId,
+        groups: (request as AuthenticatedRequest).user.groups,
+      };
 
-    const offset = parseInt(request.query.offset || 0, 10);
-    if (isNaN(offset)) {
-      reply.status(400).send({
-        apiVersion: "1.0",
-        error: {
-          code: 400,
-          message: "if present, the query parameter `offset` must be an integer",
-        },
-      });
-      return;
-    }
-
-    let limit: number | undefined = parseInt(request.query.limit, 10);
-    if (isNaN(limit)) {
-      limit = undefined;
-    } else if (limit <= 0) {
-      reply.status(400).send({
-        apiVersion: "1.0",
-        error: {
-          code: 400,
-          message: "if present, the query parameter `limit` must be a positive integer",
-        },
-      });
-      return;
-    }
-
-    try {
-      const notifications: Notification.Notification[] = await service.getNotificationsForUser(
-        ctx,
-        user,
-      );
-
-      notifications.sort(byEventTime);
-
-      const offsetIndex = offset < 0 ? Math.max(0, notifications.length + offset) : offset;
-      const slice = notifications.slice(
-        offsetIndex,
-        limit === undefined ? undefined : offsetIndex + limit,
-      );
-
-      const exposedNotifications: ExposedNotification[] = [];
-      for (const notification of slice) {
-        const metadata = await getMetadata(ctx, user, notification, service);
-        exposedNotifications.push({
-          id: notification.id,
-          isRead: notification.isRead,
-          businessEvent: {
-            type: notification.businessEvent.type,
-            time: notification.businessEvent.time,
-            publisher: notification.businessEvent.publisher,
-          },
-          metadata,
-        });
+      // Default: last created history event
+      let offset: number = 0;
+      if (request.query.offset !== undefined) {
+        offset = parseInt(request.query.offset, 10);
+        if (isNaN(offset)) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `offset` must be an integer",
+            },
+          });
+          return;
+        }
       }
 
-      const code = 200;
-      const body = {
-        apiVersion: "1.0",
-        data: {
-          userId: user.id,
-          notifications: exposedNotifications,
-        },
-      };
-      reply.status(code).send(body);
-    } catch (err) {
-      const { code, body } = toHttpError(err);
-      reply.status(code).send(body);
-    }
-  });
+      // Default: no limit
+      let limit: number | undefined;
+      if (request.query.limit !== undefined) {
+        limit = parseInt(request.query.limit, 10);
+        if (isNaN(limit) || limit <= 0) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `limit` must be a positive integer",
+            },
+          });
+          return;
+        }
+      }
+
+      try {
+        const notificationsResult = await service.getNotificationsForUser(ctx, user);
+        if (Result.isErr(notificationsResult)) {
+          throw new VError(notificationsResult, "notification.list failed");
+        }
+        const notifications = notificationsResult;
+        notifications.sort(byEventTime);
+
+        const offsetIndex = offset < 0 ? Math.max(0, notifications.length + offset) : offset;
+        const slice = notifications.slice(
+          offsetIndex,
+          limit === undefined ? undefined : offsetIndex + limit,
+        );
+
+        const exposedNotifications: ExposedNotification[] = [];
+        for (const notification of slice) {
+          const metadata = await getMetadata(ctx, user, notification, service);
+          exposedNotifications.push({
+            id: notification.id,
+            isRead: notification.isRead,
+            businessEvent: {
+              type: notification.businessEvent.type,
+              time: notification.businessEvent.time,
+              publisher: notification.businessEvent.publisher,
+            },
+            metadata,
+          });
+        }
+
+        const code = 200;
+        const body = {
+          apiVersion: "1.0",
+          data: {
+            userId: user.id,
+            notifications: exposedNotifications,
+          },
+        };
+        reply.status(code).send(body);
+      } catch (err) {
+        const { code, body } = toHttpError(err);
+        reply.status(code).send(body);
+      }
+    },
+  );
 }
 
 function byEventTime(a: Notification.Notification, b: Notification.Notification): -1 | 0 | 1 {

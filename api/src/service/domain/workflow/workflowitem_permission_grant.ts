@@ -1,5 +1,6 @@
 import isEqual = require("lodash.isequal");
 
+import { VError } from "verror";
 import Intent from "../../../authz/intents";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
@@ -32,7 +33,7 @@ export async function grantWorkflowitemPermission(
   grantee: Identity,
   intent: Intent,
   repository: Repository,
-): Promise<Result.Type<{ newEvents: BusinessEvent[] }>> {
+): Promise<Result.Type<BusinessEvent[]>> {
   const workflowitem = await repository.getWorkflowitem(projectId, subprojectId, workflowitemId);
   if (Result.isErr(workflowitem)) {
     return new NotFound(ctx, "workflowitem", workflowitemId);
@@ -48,6 +49,9 @@ export async function grantWorkflowitemPermission(
     intent,
     grantee,
   );
+  if (Result.isErr(permissionGranted)) {
+    return new VError(permissionGranted, "failed to create permission granted event");
+  }
 
   if (issuer.id !== "root") {
     const grantIntent = "workflowitem.intent.grantPermission";
@@ -73,8 +77,8 @@ export async function grantWorkflowitemPermission(
 
   // Only emit the event if it causes any changes to the permissions:
   if (isEqual(workflowitem.permissions, updatedWorkflowitem.permissions)) {
-    return { newEvents: [] };
+    return [];
   } else {
-    return { newEvents: [permissionGranted] };
+    return [permissionGranted];
   }
 }

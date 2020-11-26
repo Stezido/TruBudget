@@ -4,13 +4,20 @@ import Drawer from "@material-ui/core/Drawer";
 
 import SideNavCard from "./SideNavCard";
 import { canViewNodesDashboard } from "../../permissions";
+import UserProfile from "./UserProfile";
 
 const SideNav = props => {
   const { showSidebar, toggleSidebar, allowedIntents, ...rest } = props;
   const nodeDashboardEnabled = canViewNodesDashboard(allowedIntents);
   return (
-    <Drawer anchor="left" open={showSidebar} onClose={toggleSidebar}>
+    <Drawer
+      ModalProps={{ BackdropProps: { "data-test": "sidenav-drawer-backdrop" } }}
+      anchor="left"
+      open={showSidebar}
+      onClose={toggleSidebar}
+    >
       <SideNavCard nodeDashboardEnabled={nodeDashboardEnabled} {...rest} />
+      <UserProfile {...props} />
     </Drawer>
   );
 };

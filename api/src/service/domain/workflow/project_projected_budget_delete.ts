@@ -1,5 +1,5 @@
 import { isEqual } from "lodash";
-
+import { VError } from "verror";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
 import { BusinessEvent } from "../business_event";
@@ -11,13 +11,13 @@ import { ServiceUser } from "../organization/service_user";
 import * as UserRecord from "../organization/user_record";
 import * as NotificationCreated from "./notification_created";
 import * as Project from "./project";
+import { ProjectedBudget } from "./projected_budget";
 import * as ProjectEventSourcing from "./project_eventsourcing";
 import * as ProjectProjectedBudgetDeleted from "./project_projected_budget_deleted";
-import { ProjectedBudget } from "./projected_budget";
 
 interface Repository {
   getProject(projectId: Project.Id): Promise<Result.Type<Project.Project>>;
-  getUsersForIdentity(identity: Identity): Promise<UserRecord.Id[]>;
+  getUsersForIdentity(identity: Identity): Promise<Result.Type<UserRecord.Id[]>>;
 }
 
 type State = ProjectedBudget[];
@@ -44,6 +44,9 @@ export async function deleteProjectedBudget(
     organization,
     currencyCode,
   );
+  if (Result.isErr(budgetDeleted)) {
+    return new VError(budgetDeleted, "failed to create projected budget deleted event");
+  }
 
   // Check authorization (if not root):
   if (issuer.id !== "root") {
@@ -64,15 +67,32 @@ export async function deleteProjectedBudget(
     return { newEvents: [], projectedBudgets: result.projectedBudgets };
   } else {
     // Create notification events:
-    const recipients = project.assignee
+    const recipientsResult = project.assignee
       ? await repository.getUsersForIdentity(project.assignee)
       : [];
-    const notifications = recipients
+    if (Result.isErr(recipientsResult)) {
+      return new VError(recipientsResult, `fetch users for ${project.assignee} failed`);
+    }
+    const notifications = recipientsResult.reduce((notifications, recipient) => {
       // The issuer doesn't receive a notification:
-      .filter(userId => userId !== issuer.id)
-      .map(recipient =>
-        NotificationCreated.createEvent(ctx.source, issuer.id, recipient, budgetDeleted, projectId),
+      if (recipient !== issuer.id) {
+      const notification = NotificationCreated.createEvent(
+        ctx.source,
+        issuer.id,
+        recipient,
+        budgetDeleted,
+        projectId,
       );
+      if (Result.isErr(notification)) {
+        return new VError(notification, "failed to create  event");
+      }
+      notifications.push(notification);
+      }
+      return notifications;
+    }, [] as NotificationCreated.Event[]);
+    if (Result.isErr(notifications)) {
+      return new VError(notifications, "failed to create notification events");
+    }
     return {
       newEvents: [budgetDeleted, ...notifications],
       projectedBudgets: result.projectedBudgets,

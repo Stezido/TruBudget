@@ -33,9 +33,4 @@ describe("Overview Page", function() {
         expect($card.find("button")).to.not.have.attr("disabled");
       });
   });
-
-  it("Shows project creation", function() {
-    cy.get("[data-test=project-creation]").should("be.visible");
-    cy.get("[data-test=project-creation] button").should("be.visible");
-  });
 });

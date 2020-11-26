@@ -39,12 +39,8 @@ export const updatedDataSchema = Joi.object({
 
 export const schema = Joi.object({
   type: Joi.valid(eventType).required(),
-  source: Joi.string()
-    .allow("")
-    .required(),
-  time: Joi.date()
-    .iso()
-    .required(),
+  source: Joi.string().allow("").required(),
+  time: Joi.date().iso().required(),
   publisher: Joi.string().required(),
   projectId: Project.idSchema.required(),
   subprojectId: Subproject.idSchema.required(),
@@ -58,7 +54,7 @@ export function createEvent(
   subprojectId: Subproject.Id,
   update: UpdatedData,
   time: string = new Date().toISOString(),
-): Event {
+): Result.Type<Event> {
   const event = {
     type: eventType,
     source,
@@ -71,7 +67,7 @@ export function createEvent(
 
   const validationResult = validate(event);
   if (Result.isErr(validationResult)) {
-    throw new VError(validationResult, `not a valid ${eventType} event`);
+    return new VError(validationResult, `not a valid ${eventType} event`);
   }
   return event;
 }
@@ -93,7 +89,7 @@ export function validate(input: any): Result.Type<Event> {
  */
 export function mutate(subproject: Subproject.Subproject, event: Event): Result.Type<void> {
   if (event.type !== "subproject_updated") {
-    throw new VError(`illegal event type: ${event.type}`);
+    return new VError(`illegal event type: ${event.type}`);
   }
 
   if (subproject.status !== "open") {
@@ -102,7 +98,7 @@ export function mutate(subproject: Subproject.Subproject, event: Event): Result.
 
   const update = event.update;
 
-  ["displayName", "description"].forEach(propname => {
+  ["displayName", "description"].forEach((propname) => {
     if (update[propname] !== undefined) {
       subproject[propname] = update[propname];
     }

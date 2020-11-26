@@ -1,6 +1,9 @@
 import axios, { AxiosTransformer } from "axios";
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import * as URL from "url";
+
 import { writeXLSX } from "./excel";
+import strings, { languages } from "./localizeStrings";
 
 const apiHost: string = process.env.PROD_API_HOST || "localhost";
 const apiPort: number =
@@ -13,7 +16,19 @@ const accessControlAllowOrigin: string = process.env.ACCESS_CONTROL_ALLOW_ORIGIN
 
 const DEFAULT_API_VERSION = "1.0";
 
-const transformRequest: AxiosTransformer = data => {
+const setExcelLanguage = (url: string) => {
+  const queryData = URL.parse(url, true).query;
+
+  if (queryData.lang) {
+    languages.map((language) => {
+      if (queryData.lang === language) {
+        strings.setLanguage(queryData.lang);
+      }
+    });
+  } else strings.setLanguage("en");
+};
+
+const transformRequest: AxiosTransformer = (data) => {
   if (typeof data === "object") {
     return {
       apiVersion: DEFAULT_API_VERSION,
@@ -33,13 +48,32 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   if (req.method === "OPTIONS") {
     return res.end();
   }
+  if (!req.url) {
+    res.statusCode = 404;
+    return res.end();
+  }
+  const splittedUrl: string[] = req.url.split("/");
+  const endpoint = splittedUrl[splittedUrl.length - 1];
   // readiness and health endpoint
-  if (req.url === "/health") {
+  if (endpoint === "health") {
     return res.end();
   }
 
-  if (req.url === "/readiness") {
+  if (endpoint === "readiness") {
     // TODO: check readiness of api
+    return res.end();
+  }
+
+  if (endpoint === "version") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.statusCode = 200;
+    res.write(
+      JSON.stringify({
+        release: process.env.npm_package_version,
+        commit: process.env.CI_COMMIT_SHA || "",
+        buildTimeStamp: process.env.BUILDTIMESTAMP || "",
+      }),
+    );
     return res.end();
   }
 
@@ -54,7 +88,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   const isTest = /^\/test/.test(String(req.url));
   const isProd = /^\/prod/.test(String(req.url));
 
-  if (isTest || isProd) {
+  if ((isTest || isProd) && endpoint.includes("download")) {
+    setExcelLanguage(req.url);
+
     // create export
     try {
       const base = isTest

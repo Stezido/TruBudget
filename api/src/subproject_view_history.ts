@@ -1,5 +1,5 @@
-import { FastifyInstance } from "fastify";
-import Joi = require("joi");
+import { FastifyInstance, RequestGenericInterface } from "fastify";
+import { VError } from "verror";
 
 import { toHttpError } from "./http_errors";
 import * as NotAuthenticated from "./http_errors/not_authenticated";
@@ -15,7 +15,7 @@ import * as Workflowitem from "./service/domain/workflow/workflowitem";
 
 function mkSwaggerSchema(server: FastifyInstance) {
   return {
-    beforeHandler: [(server as any).authenticate],
+    preValidation: [(server as any).authenticate],
     schema: {
       deprecated: true,
       description:
@@ -127,11 +127,24 @@ interface Service {
     user: ServiceUser,
     projectId: Project.Id,
     subprojectId: Subproject.Id,
-  ): Promise<Workflowitem.ScrubbedWorkflowitem[]>;
+  ): Promise<Result.Type<Workflowitem.ScrubbedWorkflowitem[]>>;
+}
+
+interface Request extends RequestGenericInterface {
+  Querystring: {
+    projectId: string;
+    subprojectId: string;
+    offset?: string;
+    limit?: string;
+    startAt?: string;
+    endAt?: string;
+    publisher?: string;
+    eventType?: string;
+  };
 }
 
 export function addHttpHandler(server: FastifyInstance, urlPrefix: string, service: Service) {
-  server.get(
+  server.get<Request>(
     `${urlPrefix}/subproject.viewHistory`,
     mkSwaggerSchema(server),
     async (request, reply) => {
@@ -167,64 +180,68 @@ export function addHttpHandler(server: FastifyInstance, urlPrefix: string, servi
         return;
       }
 
-      const offset = parseInt(request.query.offset || 0, 10);
-      if (isNaN(offset)) {
-        reply.status(400).send({
-          apiVersion: "1.0",
-          error: {
-            code: 400,
-            message: "if present, the query parameter `offset` must be an integer",
-          },
-        });
-        return;
+      // Default: last created history event
+      let offset: number = 0;
+      if (request.query.offset !== undefined) {
+        offset = parseInt(request.query.offset, 10);
+        if (isNaN(offset)) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `offset` must be an integer",
+            },
+          });
+          return;
+        }
       }
 
-      let limit: number | undefined = parseInt(request.query.limit, 10);
-      if (isNaN(limit)) {
-        limit = undefined;
-      } else if (limit <= 0) {
-        reply.status(400).send({
-          apiVersion: "1.0",
-          error: {
-            code: 400,
-            message: "if present, the query parameter `limit` must be a positive integer",
-          },
-        });
-        return;
+      // Default: no limit
+      let limit: number | undefined;
+      if (request.query.limit !== undefined) {
+        limit = parseInt(request.query.limit, 10);
+        if (isNaN(limit) || limit <= 0) {
+          reply.status(400).send({
+            apiVersion: "1.0",
+            error: {
+              code: 400,
+              message: "if present, the query parameter `limit` must be a positive integer",
+            },
+          });
+          return;
+        }
       }
 
       try {
+        // Get subproject log
         const subprojectResult = await service.getSubproject(ctx, user, projectId, subprojectId);
         if (Result.isErr(subprojectResult)) {
-          subprojectResult.message = `subproject.viewHistory failed: ${subprojectResult.message}`;
-          throw subprojectResult;
+          throw new VError(subprojectResult, "subproject.viewHistory failed");
         }
         const subproject: Subproject.Subproject = subprojectResult;
-        // Add subprojects' logs to the project log and sort by creation time:
+
+        // Get log of workflowitems
         const workflowitemsResult = await service.getWorkflowitems(
           ctx,
           user,
           projectId,
           subprojectId,
         );
-        // TODO: Uncomment if Result.Type<Workflowitem.Workflowitem[]>> is used
-        // if (Result.isErr(workflowitemsResult)) {
-        //   workflowitemsResult.message = `subproject.viewHistory failed: ${
-        //     workflowitemsResult.message
-        //   }`;
-        //   throw workflowitemsResult;
-        // }
+        if (Result.isErr(workflowitemsResult)) {
+          throw new VError(workflowitemsResult, "subproject.viewHistory failed");
+        }
         const workflowitems: Workflowitem.ScrubbedWorkflowitem[] = workflowitemsResult;
 
+        // Concat logs of subproject and workflowitems and sort them
         const events: ExposedEvent[] = subproject.log;
         for (const workflowitem of workflowitems) {
           if (!workflowitem.isRedacted) {
             events.push(...workflowitem.log);
           }
         }
-
         events.sort(byEventTime);
 
+        // Handle offset and limit
         const offsetIndex = offset < 0 ? Math.max(0, events.length + offset) : offset;
         const slice = events.slice(
           offsetIndex,

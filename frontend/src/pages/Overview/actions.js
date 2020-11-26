@@ -14,7 +14,8 @@ export const SHOW_EDIT_DIALOG = "SHOW_EDIT_DIALOG";
 export const HIDE_EDIT_DIALOG = "HIDE_EDIT_DIALOG";
 
 export const PROJECT_NAME = "PROJECT_NAME";
-export const PROJECT_PROJECTED_BUDGET = "PROJECT_PROJECTED_BUDGET";
+export const ADD_PROJECT_PROJECTED_BUDGET = "ADD_PROJECT_PROJECTED_BUDGET";
+export const EDIT_PROJECT_PROJECTED_BUDGET_AMOUNT = "EDIT_PROJECT_PROJECTED_BUDGET_AMOUNT";
 export const PROJECT_DELETED_PROJECTED_BUDGET = "PROJECT_DELETED_PROJECTED_BUDGET";
 export const PROJECT_COMMENT = "PROJECT_COMMENT";
 export const PROJECT_THUMBNAIL = "PROJECT_THUMBNAIL";
@@ -30,15 +31,25 @@ export const EDIT_PROJECT = "EDIT_PROJECT";
 export const EDIT_PROJECT_SUCCESS = "EDIT_PROJECT_SUCCESS";
 export const FETCH_PROJECT_PERMISSIONS = "FETCH_PROJECT_PERMISSIONS";
 export const FETCH_PROJECT_PERMISSIONS_SUCCESS = "FETCH_PROJECT_PERMISSIONS_SUCCESS";
+export const FETCH_PROJECT_PERMISSIONS_FAILURE = "FETCH_PROJECT_PERMISSIONS_FAILURE";
 
-export const GRANT_PERMISSION = "GRANT_PERMISSION";
-export const GRANT_PERMISSION_SUCCESS = "GRANT_PERMISSION_SUCCESS";
+export const GRANT_PROJECT_PERMISSION = "GRANT_PROJECT_PERMISSION";
+export const GRANT_PROJECT_PERMISSION_SUCCESS = "GRANT_PROJECT_PERMISSION_SUCCESS";
+export const GRANT_PROJECT_PERMISSION_FAILURE = "GRANT_PROJECT_PERMISSION_FAILURE";
 
-export const REVOKE_PERMISSION = "REVOKE_PERMISSION";
-export const REVOKE_PERMISSION_SUCCESS = "REVOKE_PERMISSION_SUCCESS";
+export const REVOKE_PROJECT_PERMISSION = "REVOKE_PROJECT_PERMISSION";
+export const REVOKE_PROJECT_PERMISSION_SUCCESS = "REVOKE_PROJECT_PERMISSION_SUCCESS";
+export const REVOKE_PROJECT_PERMISSION_FAILURE = "REVOKE_PROJECT_PERMISSION_FAILURE";
 
 export const ADD_PROJECT_TAG = "ADD_PROJECT_TAG";
 export const REMOVE_PROJECT_TAG = "REMOVE_PROJECT_TAG";
+
+export const ADD_TEMPORARY_PROJECT_PERMISSION = "ADD_TEMPORARY_PROJECT_PERMISSION";
+export const REMOVE_TEMPORARY_PROJECT_PERMISSION = " REMOVE_TEMPORARY_PROJECT_PERMISSION";
+
+export const STORE_FILTERED_PROJECTS = "STORE_FILTERED_PROJECTS";
+export const STORE_HIGHLIGHTING_REGEX = "STORE_HIGHLIGHTING_REGEX";
+export const STORE_SEARCH_TERMS_AS_ARRAY = "STORE_SEARCH_TERMS_AS_ARRAY";
 
 export function fetchAllProjects(showLoading = false) {
   return {
@@ -75,10 +86,11 @@ export function fetchProjectPermissions(projectId, showLoading = false) {
   };
 }
 
-export function showProjectPermissions(id) {
+export function showProjectPermissions(id, displayName) {
   return {
     type: SHOW_PROJECT_PERMISSIONS,
-    id
+    id,
+    displayName
   };
 }
 
@@ -131,10 +143,18 @@ export function storeProjectName(name) {
   };
 }
 
-export function storeProjectedBudget(projectedBudgets) {
+export function addProjectProjectedBudget(projectedBudget) {
   return {
-    type: PROJECT_PROJECTED_BUDGET,
-    projectedBudgets: projectedBudgets
+    type: ADD_PROJECT_PROJECTED_BUDGET,
+    projectedBudget
+  };
+}
+
+export function editProjectProjectedBudgetAmount(projectedBudget, budgetAmountEdit) {
+  return {
+    type: EDIT_PROJECT_PROJECTED_BUDGET_AMOUNT,
+    projectedBudget,
+    budgetAmountEdit
   };
 }
 
@@ -166,22 +186,40 @@ export function setCurrentStep(step) {
   };
 }
 
-export function grantPermission(projectId, intent, identity, showLoading = false) {
+export function grantProjectPermission(
+  projectId,
+  projectDisplayName,
+  intent,
+  granteeId,
+  granteeDisplayName,
+  showLoading = false
+) {
   return {
-    type: GRANT_PERMISSION,
+    type: GRANT_PROJECT_PERMISSION,
     projectId,
+    projectDisplayName,
     intent,
-    identity,
+    granteeId,
+    granteeDisplayName,
     showLoading
   };
 }
 
-export function revokePermission(projectId, intent, identity, showLoading = false) {
+export function revokeProjectPermission(
+  projectId,
+  projectDisplayName,
+  intent,
+  revokeeId,
+  revokeeDisplayName,
+  showLoading = false
+) {
   return {
-    type: REVOKE_PERMISSION,
+    type: REVOKE_PROJECT_PERMISSION,
     projectId,
+    projectDisplayName,
     intent,
-    identity,
+    revokeeId,
+    revokeeDisplayName,
     showLoading
   };
 }
@@ -197,5 +235,42 @@ export function removeProjectTag(tag) {
   return {
     type: REMOVE_PROJECT_TAG,
     tag
+  };
+}
+
+export function addTemporaryPermission(permission, userId) {
+  return {
+    type: ADD_TEMPORARY_PROJECT_PERMISSION,
+    permission,
+    userId
+  };
+}
+
+export function removeTemporaryPermission(permission, userId) {
+  return {
+    type: REMOVE_TEMPORARY_PROJECT_PERMISSION,
+    permission,
+    userId
+  };
+}
+
+export function storeFilteredProjects(filteredProjects) {
+  return {
+    type: STORE_FILTERED_PROJECTS,
+    filteredProjects
+  };
+}
+
+export function storeHighlightingRegex(highlightingRegex) {
+  return {
+    type: STORE_HIGHLIGHTING_REGEX,
+    highlightingRegex
+  };
+}
+
+export function storeSearchTermArray(searchTerms) {
+  return {
+    type: STORE_SEARCH_TERMS_AS_ARRAY,
+    searchTerms
   };
 }

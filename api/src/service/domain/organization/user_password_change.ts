@@ -1,5 +1,6 @@
 import Joi = require("joi");
 
+import { VError } from "verror";
 import Intent from "../../../authz/intents";
 import { Ctx } from "../../../lib/ctx";
 import * as Result from "../../../result";
@@ -19,7 +20,11 @@ export interface RequestData {
 
 const requestDataSchema = Joi.object({
   userId: UserRecord.idSchema.required(),
-  newPassword: Joi.string().required(),
+  newPassword: Joi.string()
+    .min(8)
+    .regex(/[a-zA-z]/)
+    .regex(/[0-9]/)
+    .required(),
 });
 
 export function validate(input: any): Result.Type<RequestData> {
@@ -35,15 +40,24 @@ interface Repository {
 export async function changeUserPassword(
   ctx: Ctx,
   issuer: ServiceUser,
+  issuerOrganization: string,
   data: RequestData,
   repository: Repository,
 ): Promise<Result.Type<BusinessEvent[]>> {
   const source = ctx.source;
   const publisher = issuer.id;
+  const validationResult = validate(data);
+  const intent: Intent = "user.changePassword";
   const passwordChanged = UserPasswordChanged.createEvent(source, publisher, {
     id: data.userId,
     passwordHash: await repository.hash(data.newPassword),
   });
+  if (Result.isErr(passwordChanged)) {
+    return new VError(passwordChanged, "failed to create user password changed event");
+  }
+  if (Result.isErr(validationResult)) {
+    return new PreconditionError(ctx, passwordChanged, validationResult.message);
+  }
 
   const userResult = await repository.getUser(data.userId);
   if (Result.isErr(userResult)) {
@@ -51,9 +65,13 @@ export async function changeUserPassword(
   }
   const user = userResult;
 
+  // Check if revokee and issuer belong to the same organization
+  if (userResult.organization !== issuerOrganization) {
+    return new NotAuthorized({ ctx, userId: issuer.id, intent });
+  }
+
   // Check authorization (if not root):
   if (issuer.id !== "root") {
-    const intent: Intent = "user.changePassword";
     const isAuthorized = UserRecord.permits(user, issuer, [intent]);
     if (!isAuthorized) {
       return new NotAuthorized({ ctx, userId: issuer.id, intent });
