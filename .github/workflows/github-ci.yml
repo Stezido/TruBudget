@@ -1,6 +1,6 @@
 name: Node.js CI
 
-on: [push]
+on: [push] # TODO change to pull_request
 
 jobs:
 # Audit job
@@ -12,6 +12,10 @@ jobs:
   #       node-version: [10.x]
   #       project: [frontend,api,blockchain,provisioning,e2e-test,excel-export,email-notification]
         
+  #   defaults:
+  #     run:
+  #       working-directory: ${{ matrix.project }}
+
   #   steps:
   #     - uses: actions/checkout@v2
 
@@ -19,30 +23,74 @@ jobs:
   #       uses: actions/setup-node@v1
   #       with:
   #         node-version: ${{ matrix.node-version }}
-  #     - run: cd ${{ matrix.project }}
   #     - name: Audit project ${{ matrix.project }}
   #       run: npm audit --audit-level=high
 # Test job
-  test:
+  # test:
+  #   runs-on: ubuntu-latest
+
+  #   strategy:
+  #     matrix:
+  #       node-version: [10.x]
+  #       project: [frontend, api]
+        
+  #   defaults:
+  #     run:
+  #       working-directory: ${{ matrix.project }}
+
+  #   steps:
+  #     - uses: actions/checkout@v2
+
+  #     - name: Use Node.js ${{ matrix.node-version }}
+  #       uses: actions/setup-node@v1
+  #       with:
+  #         node-version: ${{ matrix.node-version }}
+  #     - run: npm ci
+  #     - name: Run tests for ${{ matrix.project }}
+  #       run: npm test
+
+# Danger JS
+  # dangerjs:
+  #   runs-on: ubuntu-latest
+
+  #   strategy:
+  #     matrix:
+  #       node-version: [10.x]
+
+  #   steps:
+  #     - uses: actions/checkout@v2
+
+  #     - name: Use Node.js ${{ matrix.node-version }}
+  #       uses: actions/setup-node@v1
+  #       with:
+  #         node-version: ${{ matrix.node-version }}
+  #     - name: Run danger and create github comment if necessary
+  #       run: npm run danger ci
+
+# Docker Builds
+  docker-build:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [10.x]
-        project: [frontend] # TODO add api again
+        project: [excel-export]
         
     defaults:
       run:
         working-directory: ${{ matrix.project }}
 
+    env:
+      PROJECT_NAME: ${{ matrix.project }}
+
     steps:
       - uses: actions/checkout@v2
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: ls
-      - run: npm ci
-      - name: Run tests for ${{ matrix.project }}
-        run: npm test
+      - uses: docker-practice/actions-setup-docker@master
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - run: chmod +x ../scripts/pipeline/publish-docker-images.sh
+      - name: Build and publish docker images to private registry
+        run: ../scripts/pipeline/publish-docker-images.sh
+        env:
+          GITHUB_BRANCH: ${{ steps.extract_branch.outputs.branch }}
