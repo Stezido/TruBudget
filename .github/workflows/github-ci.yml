@@ -94,3 +94,6 @@ jobs:
         run: ../scripts/pipeline/publish-docker-images.sh
         env:
           GITHUB_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+          PRIVATE_REGISTRY: ${{ secrets.PRIVATE_REGISTRY}}
+          PRIVATE_REGISTRY_USERNAME: ${{ secrets.PRIVATE_REGISTRY_USERNAME}}
+          PRIVATE_REGISTRY_PASSWORD: ${{ secrets.PRIVATE_REGISTRY_PASSWORD}}

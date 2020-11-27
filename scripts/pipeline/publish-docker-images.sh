@@ -12,7 +12,7 @@ echo "$GITHUB_EVENT_NAME"
 export BUILDTIMESTAMP=$(date -Iseconds)
 export TAG=trubudget/"$PROJECT_NAME":"$GITHUB_BRANCH"
 
-docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_SHA="$TRAVIS_COMMIT" --tag "$TAG" -f Dockerfile .
+docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_SHA="$GITHUB_SHA" --tag "$TAG" -f Dockerfile .
 
 if [[ "$GITHUB_EVENT_NAME" = "pull_request" ]];
 then
