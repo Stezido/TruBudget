@@ -26,7 +26,7 @@ fi
 if [[ "$GITHUB_BRANCH" = "master" ]] && [[ "$GITHUB_EVENT_NAME" = "push" ]];
 then
   echo "Enter Master Path"
-  echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  # echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   # TODO enable docker push to docker hub
   # docker push "$TAG"
 fi
