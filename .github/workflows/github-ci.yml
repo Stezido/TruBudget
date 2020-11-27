@@ -20,6 +20,6 @@ jobs:
           node-version: ${{ node-version }}
       - run: cd {{ project }}
       - name: Audit project ${{ project }}
-      - run: npm audit --audit-level=high
+        run: npm audit --audit-level=high
         env:
           CI: true
