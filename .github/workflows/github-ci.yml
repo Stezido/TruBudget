@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - run: cd ./Trubudget/${{ matrix.project }}
+      - run: cd ./TruBudget/${{ matrix.project }}
       - name: Audit project ${{ matrix.project }}
         run: npm audit --audit-level=high
 # Test job
@@ -38,7 +38,7 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - run: cd ./Trubudget/${{ matrix.project }}
+      - run: cd ./TruBudget/${{ matrix.project }}
       - run: npm ci
       - name: Run tests for ${{ matrix.project }}
         run: npm test
