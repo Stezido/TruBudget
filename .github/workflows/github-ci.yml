@@ -1,0 +1,34 @@
+name: Node.js CI
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: 10.x
+        project:
+          [
+            frontend,
+            api,
+            blockchain,
+            provisioning,
+            e2e-test,
+            excel-export,
+            email-notification,
+          ]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use Node.js ${{ node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ node-version }}
+      - name: Audit project ${{ project }}
+      - run: cd {{ project }}
+      - run: npm audit --audit-level=high
+        env:
+          CI: true
