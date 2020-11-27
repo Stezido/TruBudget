@@ -1,14 +1,6 @@
 #!/bin/bash
 set -ev
 
-echo "$PRIVATE_REGISTRY_PASSWORD"
-echo "$PRIVATE_REGISTRY_USERNAME"
-echo "$PRIVATE_REGISTRY"
-echo "$PROJECT_NAME"
-echo "$GITHUB_BRANCH"
-echo "$GITHUB_RUN_ID"
-echo "$GITHUB_EVENT_NAME"
-
 export BUILDTIMESTAMP=$(date -Iseconds)
 export TAG=trubudget/"$PROJECT_NAME":"$GITHUB_BRANCH"
 
