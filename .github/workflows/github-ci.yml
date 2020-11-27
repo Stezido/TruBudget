@@ -18,8 +18,8 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ node-version }}
-      - name: Audit project ${{ project }}
       - run: cd {{ project }}
+      - name: Audit project ${{ project }}
       - run: npm audit --audit-level=high
         env:
           CI: true
