@@ -19,7 +19,7 @@ jobs:
   #       uses: actions/setup-node@v1
   #       with:
   #         node-version: ${{ matrix.node-version }}
-  #     - run: cd TruBudget/${{ matrix.project }}
+  #     - run: cd ${{ matrix.project }}
   #     - name: Audit project ${{ matrix.project }}
   #       run: npm audit --audit-level=high
 # Test job
@@ -31,6 +31,10 @@ jobs:
         node-version: [10.x]
         project: [frontend] # TODO add api again
         
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+
     steps:
       - uses: actions/checkout@v2
 
@@ -39,8 +43,6 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: ls
-      - run: cd TruBudget
-      - run: cd ${{ matrix.project }}
       - run: npm ci
       - name: Run tests for ${{ matrix.project }}
         run: npm test
