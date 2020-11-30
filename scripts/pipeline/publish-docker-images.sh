@@ -8,24 +8,18 @@ echo "/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
 
 docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_SHA="$GITHUB_SHA" --tag "$TAG" -f Dockerfile .
 
-if [[ "$GITHUB_EVENT_NAME" = "push" ]];# TODO change to pull_reuqest
-then
-  echo "$PRIVATE_REGISTRY_PASSWORD" | docker login -u "$PRIVATE_REGISTRY_USERNAME" --password-stdin "$PRIVATE_REGISTRY"
-  echo "GITHUB_RUN_ID: $GITHUB_RUN_ID"
-  echo "PROJECT_NAME: $PROJECT_NAME"
-  export TAG_BUILD_PRIVATE="$PRIVATE_REGISTRY_BASE/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
-  docker tag "$TAG" "$TAG_BUILD_PRIVATE"
-  echo "Pushing [private]/trubudget/$PROJECT_NAME:$GITHUB_RUN_ID"
-  docker push "$TAG_BUILD_PRIVATE" >/dev/null 2>&1
-fi
+echo "$PRIVATE_REGISTRY_PASSWORD" | docker login -u "$PRIVATE_REGISTRY_USERNAME" --password-stdin "$PRIVATE_REGISTRY"
+export TAG_BUILD_PRIVATE="$PRIVATE_REGISTRY_BASE/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
+docker tag "$TAG" "$TAG_BUILD_PRIVATE"
+docker push "$TAG_BUILD_PRIVATE" >/dev/null 2>&1
 
-if [[ "$GITHUB_BRANCH" = "master" ]] && [[ "$GITHUB_EVENT_NAME" = "push" ]];
-then
-  echo "Enter Master Path"
-  # echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-  # TODO enable docker push to docker hub
-  # docker push "$TAG"
-fi
+# if [[ "$GITHUB_BRANCH" = "master" ]] && [[ "$GITHUB_EVENT_NAME" = "push" ]];
+# then
+#   echo "Enter Master Path"
+#   # echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+#   # TODO enable docker push to docker hub
+#   # docker push "$TAG"
+# fi
 
 # TODO check what it does
 # if [[ -n "$TRAVIS_TAG" ]];
