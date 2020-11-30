@@ -8,7 +8,7 @@ echo "/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
 
 docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_SHA="$GITHUB_SHA" --tag "$TAG" -f Dockerfile .
 
-if [[ "$GITHUB_EVENT_NAME" = "pull_request" ]]:
+if [[ "$GITHUB_EVENT_NAME" = "pull_request" ]];
 then
   echo "$PRIVATE_REGISTRY_PASSWORD" | docker login -u "$PRIVATE_REGISTRY_USERNAME" --password-stdin "$PRIVATE_REGISTRY"
   export TAG_BUILD_PRIVATE="$PRIVATE_REGISTRY_BASE/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
