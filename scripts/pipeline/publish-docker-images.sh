@@ -4,6 +4,8 @@ set -ev
 export BUILDTIMESTAMP=$(date -Iseconds)
 export TAG=trubudget/"$PROJECT_NAME":"$GITHUB_BRANCH"
 
+echo "/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
+
 docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_SHA="$GITHUB_SHA" --tag "$TAG" -f Dockerfile .
 
 if [[ "$GITHUB_EVENT_NAME" = "push" ]];# TODO change to pull_reuqest
