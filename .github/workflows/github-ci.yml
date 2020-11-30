@@ -1,54 +1,60 @@
 name: Node.js CI
 
-on: [push] # TODO change to pull_request
+on: 
+  push:
+    branches:
+      - master
+  pull_request:
+  release:
 
 jobs:
-# Audit job
-  # audit:
-  #   runs-on: ubuntu-latest
 
-  #   strategy:
-  #     matrix:
-  #       node-version: [10.x]
-  #       project: [frontend,api,blockchain,provisioning,e2e-test,excel-export,email-notification]
+  audit:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [10.x]
+        project: [frontend,api,blockchain,provisioning,e2e-test,excel-export,email-notification]
         
-  #   defaults:
-  #     run:
-  #       working-directory: ${{ matrix.project }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
 
-  #   steps:
-  #     - uses: actions/checkout@v2
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - name: Use Node.js ${{ matrix.node-version }}
-  #       uses: actions/setup-node@v1
-  #       with:
-  #         node-version: ${{ matrix.node-version }}
-  #     - name: Audit project ${{ matrix.project }}
-  #       run: npm audit --audit-level=high
-# Test job
-  # test:
-  #   runs-on: ubuntu-latest
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Audit project ${{ matrix.project }}
+        run: npm audit --audit-level=high
+  
+  test:
+    runs-on: ubuntu-latest
 
-  #   strategy:
-  #     matrix:
-  #       node-version: [10.x]
-  #       project: [frontend, api]
+    strategy:
+      matrix:
+        node-version: [10.x]
+        project: [frontend, api]
         
-  #   defaults:
-  #     run:
-  #       working-directory: ${{ matrix.project }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
 
-  #   steps:
-  #     - uses: actions/checkout@v2
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - name: Use Node.js ${{ matrix.node-version }}
-  #       uses: actions/setup-node@v1
-  #       with:
-  #         node-version: ${{ matrix.node-version }}
-  #     - run: npm ci
-  #     - name: Run tests for ${{ matrix.project }}
-  #       run: npm test
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - name: Run tests for ${{ matrix.project }}
+        run: npm test
 
+# TODO Enable Danger API TOKEN (HOW)
 # Danger JS
   # dangerjs:
   #   runs-on: ubuntu-latest
@@ -73,7 +79,7 @@ jobs:
 
     strategy:
       matrix:
-        project: [excel-export]
+        project: [frontend,api,blockchain,provisioning,e2e-test,excel-export,email-notification]
         
     defaults:
       run:
@@ -98,3 +104,29 @@ jobs:
           PRIVATE_REGISTRY_BASE: ${{ secrets.PRIVATE_REGISTRY_BASE}}
           PRIVATE_REGISTRY_USERNAME: ${{ secrets.PRIVATE_REGISTRY_USERNAME}}
           PRIVATE_REGISTRY_PASSWORD: ${{ secrets.PRIVATE_REGISTRY_PASSWORD}}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME}}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD}}
+    
+  # TODO Enable Webhook set env vars for Webhook and check env vars provided
+  # notification:
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #    - name: Extract branch name
+  #      shell: bash
+  #      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+  #      id: extract_branch
+  #    - name: Trigger e2e-tests
+  #      run: curl -X POST \
+  #         -F token={{ secrets.$WEBHOOK_TOKEN }} \
+  #         -F ref={{ secrets.$WEBHOOK_REF }} \
+  #         -F "variables[TRAVIS_PULL_REQUEST_BRANCH]=$GITHUB_BRANCH" \
+  #         -F "variables[TRAVIS_BRANCH]=$GITHUB_BASE_BRANCH" \
+  #         -F "variables[TRAVIS_BUILD_ID]=t_$GITHUB_RUN_ID" \
+  #         -F "variables[TRAVIS_EVENT_TYPE_FOR_BRANCH]=$GITHUB_EVENT_NAME-$GITHUB_BASE_BRANCH" \
+  #         -F "variables[GITHUB_PULL_REQUEST]=$PR_NUMBER" \
+  #         -F "variables[GITHUB_REPOSITORY]=$GITHUB_REPOSITORY" \
+  #         "{{ secrets.$WEBHOOK_URL }}"
+  #      env:
+  #        PR_NUMBER: ${{ github.event.number }}
+  #        GITHUB_BASE_BRANCH: ${{ github.event.number }}
