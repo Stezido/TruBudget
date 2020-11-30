@@ -9,6 +9,8 @@ docker build --build-arg BUILDTIMESTAMP="$BUILDTIMESTAMP" --build-arg CI_COMMIT_
 if [[ "$GITHUB_EVENT_NAME" = "push" ]];# TODO change to pull_reuqest
 then
   echo "$PRIVATE_REGISTRY_PASSWORD" | docker login -u "$PRIVATE_REGISTRY_USERNAME" --password-stdin "$PRIVATE_REGISTRY"
+  echo "GITHUB_RUN_ID: $GITHUB_RUN_ID"
+  echo "PROJECT_NAME: $PROJECT_NAME"
   export TAG_BUILD_PRIVATE="$PRIVATE_REGISTRY_BASE/trubudget/$PROJECT_NAME:t_$GITHUB_RUN_ID"
   docker tag "$TAG" "$TAG_BUILD_PRIVATE"
   echo "Pushing [private]/trubudget/$PROJECT_NAME:$GITHUB_RUN_ID"
