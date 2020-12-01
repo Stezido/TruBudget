@@ -28,8 +28,8 @@ const Workflow = props => {
           position: "absolute",
           alignItems: "center",
           top: "16px",
-          right: "-26px",
-          zIndex: 10
+          right: "-26px"
+          // zIndex: 10
         }}
       >
         {/* Button is disabled either if the user is not allowed to edit or the user is in "sort" mode */}
