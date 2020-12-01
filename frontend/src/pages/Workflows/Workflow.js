@@ -28,7 +28,7 @@ const Workflow = props => {
           position: "absolute",
           alignItems: "center",
           top: "16px",
-          right: "-26px"
+          // right: "-26px",
           zIndex: 10
         }}
       >
