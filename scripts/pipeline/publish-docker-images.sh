@@ -95,7 +95,7 @@ then
   # log into docker hub
   echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   docker tag "$TAG" "$TAG_RELEASE"
-  docker push "$TAG"
+  echo "docker push $TAG"
   docker tag "$TAG" "$TAG_LATEST"
-  docker push "$TAG_LATEST"
+  echo "docker push $TAG_LATEST"
 fi
